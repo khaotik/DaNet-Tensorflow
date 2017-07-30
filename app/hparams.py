@@ -20,7 +20,7 @@ DROPOUT_KEEP_PROB = 0.8  # probability to keep in dropout layer
 assert isinstance(DROPOUT_KEEP_PROB, float)
 assert 0. < DROPOUT_KEEP_PROB <= 1.
 REG_SCALE = 1e-2  # regularization loss scale
-REG_TYPE = 'L2'  # regularization type, "L2" or "L1"
+REG_TYPE = 'L2'  # regularization type, "L2", "L1" or "none"
 
 # check "modules.py" to see available sub-modules
 ENCODER_TYPE = 'bilstm-orig'
@@ -82,6 +82,7 @@ def get_dataset():
 
 def get_regularizer():
     reger = dict(
+        none=None,
         L1=tf.contrib.layers.l1_regularizer,
         L2=tf.contrib.layers.l2_regularizer)[REG_TYPE](REG_SCALE)
     return reger
