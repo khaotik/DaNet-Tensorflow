@@ -46,6 +46,24 @@ class Encoder(ModelModule):
         raise NotImplementedError()
 
 
+class Estimator(ModelModule):
+    '''
+    Given embedding in T-F domain, estimates attractor location
+    '''
+    def __init__(self, model, name):
+        self.name = name
+
+    def __call__(self, s_embed):
+        '''
+        Args:
+            s_embed: tensor of shape [batch_size, length, fft_size, embedding_size]
+
+        Returns:
+            s_attractors: tensor of shape [batch_size, num_signals, embedding_size]
+        '''
+        raise NotImplementedError()
+
+
 @hparams.register_encoder('toy')
 class ToyEncoder(Encoder):
     '''
@@ -120,4 +138,50 @@ class BiLstmEncoder(Encoder):
                 s_out,
                 [hparams.BATCH_SIZE, -1, hparams.FEATURE_SIZE, hparams.EMBED_SIZE])
         return s_out
+
+
+@hparams.register_estimator('anchor')
+class AnchoredEstimator(Estimator):
+    '''
+    Estimate attractor from best combination from
+    anchors, then perform 1-step EM
+    '''
+    def __init__(self, model, name):
+        self.name = name
+
+    def __call__(self, s_embed):
+        with tf.variable_scope(self.name):
+            v_anchors = tf.get_variable(
+                'anchors', [hparams.NUM_ANCHOR, hparams.EMBED_SIZE])
+            # all combinations of anchors
+            s_anchor_sets = ops.combinations(
+                v_anchors, hparams.MAX_N_SIGNAL)
+
+            # equation (6)
+            s_anchor_assignment = tf.einsum(
+                'btfe,pce->bptfc',
+                s_embed, s_anchor_sets)
+            s_anchor_assignment = tf.nn.softmax(s_anchor_assignment)
+
+            # equation (7)
+            s_attractor_sets = tf.einsum(
+                'bptfc,btfe->bpce',
+                s_anchor_assignment, s_embed)
+            s_attractor_sets /= tf.expand_dims(
+                tf.reduce_sum(s_anchor_assignment, axis=(2,3)), -1)
+
+            # equation (8)
+            s_in_set_similarities = tf.reduce_max(
+                tf.matmul(
+                    s_attractor_sets,
+                    tf.transpose(s_attractor_sets, [0, 1, 3, 2])),
+                axis=(-1, -2))
+
+            # equation (9)
+            s_subset_choice = tf.argmin(s_in_set_similarities, axis=1)
+            s_subset_choice = tf.transpose(tf.stack([
+                s_subset_choice,
+                tf.range(hparams.BATCH_SIZE, dtype=tf.int64)]))
+            s_attractors = tf.gather_nd(s_attractor_sets, s_subset_choice)
+        return s_attractors
 

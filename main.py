@@ -6,11 +6,12 @@ TODO docs
 from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import division
-from math import sqrt, isnan
+from math import sqrt, isnan, factorial
 import argparse
 from sys import stdout
 from collections import OrderedDict
 from functools import reduce
+from itertools import permutations
 import os
 import copy
 
@@ -82,6 +83,34 @@ def save_wavfile(filename, feature):
         feature: 2D float array of shape [time, FEATURE_SIZE]
     '''
     raise NotImplementedError()
+
+
+def do_separation(s_mixed_signals_log, s_attractors, s_embed_flat):
+    '''
+    Given mixture log-power spectra, embedding, and attractors,
+      find masks and return log-power spectra of separated signals.
+
+    Args:
+        s_mixed_signals_log: tensor of shape [batch_size, length, fft_size]
+        s_attractors: tensor of shape [batch_size, num_signals, embedding_size]
+        s_embed_flat: tensor of shape [batch_size, length*fft_size, embedding_size]
+
+    Returns:
+        s_separated_signals_log:
+            tensor of shape [batch_size, num_signals, length, fft_size]
+    '''
+    s_logits = tf.matmul(
+        s_embed_flat, tf.transpose(s_attractors, [0, 2, 1]))
+    s_logits = tf.reshape(
+        s_logits, [
+            hparams.BATCH_SIZE,
+            -1, hparams.FEATURE_SIZE,
+            hparams.MAX_N_SIGNAL])
+    s_masks = tf.nn.sigmoid(s_logits)
+    s_separated_signals_log = tf.expand_dims(
+        s_mixed_signals_log, -1) * s_masks
+    return tf.transpose(
+        s_separated_signals_log, [0, 3, 1, 2])
 
 
 class Model(object):
@@ -221,8 +250,6 @@ class Model(object):
         # create sub-modules
         encoder = hparams.get_encoder()(
             self, 'encoder')
-
-
         # ===================
         # build the model
 
@@ -250,35 +277,54 @@ class Model(object):
             s_src_signals_log = tf.log1p(tf.abs(s_src_signals))
             s_mixed_signals_log = tf.log1p(tf.abs(s_mixed_signals))
             # int[B, T, F]
-            s_src_assignment = tf.argmax(s_src_signals_log, axis=1)
             # float[B, T, F, E]
             s_embed = encoder(s_mixed_signals_log)
-            with tf.name_scope('attractor'):
-                s_indices = tf.reshape(
-                    s_src_assignment,
-                    [hparams.BATCH_SIZE, -1])
-                s_embed_flat = tf.reshape(
-                    s_embed,
-                    [hparams.BATCH_SIZE, -1, hparams.EMBED_SIZE])
-                fn_segmean = lambda _: tf.unsorted_segment_sum(
-                    _[0], _[1], hparams.MAX_N_SIGNAL)
-                # float[B, C, E]
-                s_attractors = tf.map_fn(
-                    fn_segmean, (s_embed_flat, s_indices), hparams.FLOATX)
+            s_embed_flat = tf.reshape(
+                s_embed,
+                [hparams.BATCH_SIZE, -1, hparams.EMBED_SIZE])
 
-            s_logits = tf.matmul(
-                s_embed_flat, tf.transpose(s_attractors, [0, 2, 1]))
-            s_logits = tf.reshape(
-                s_logits, [
-                    hparams.BATCH_SIZE,
-                    -1, hparams.FEATURE_SIZE,
-                    hparams.MAX_N_SIGNAL])
+            # TODO make attractor estimator a submodule ?
+            if hparams.TRAIN_ATTRACTOR_METHOD == 'truth':
+                with tf.name_scope('attractor'):
+                    s_src_assignment = tf.argmax(s_src_signals_log, axis=1)
+                    s_indices = tf.reshape(
+                        s_src_assignment,
+                        [hparams.BATCH_SIZE, -1])
+                    fn_segmean = lambda _: tf.unsorted_segment_sum(
+                        _[0], _[1], hparams.MAX_N_SIGNAL)
+                    # float[B, C, E]
+                    s_attractors = tf.map_fn(
+                        fn_segmean, (s_embed_flat, s_indices), hparams.FLOATX)
+            elif hparams.TRAIN_ATTRACTOR_METHOD == 'anchor':
+                s_attractors = hparams.get_estimator(
+                    'anchor')(self, 'train_estimator')(s_embed)
 
-            s_masks = tf.nn.sigmoid(s_logits)
-            s_separated_signals = tf.expand_dims(s_mixed_signals_log, -1) * s_masks
-            s_separated_signals = tf.transpose(s_separated_signals, [0, 3, 1, 2])
-            s_loss = tf.reduce_mean(
-                tf.square(s_separated_signals - s_src_signals_log), axis=None)
+            using_same_method = (
+                hparams.INFER_ATTRACTOR_METHOD ==
+                hparams.TRAIN_ATTRACTOR_METHOD)
+
+            if using_same_method:
+                s_infer_attractors = s_attractors
+            else:
+                s_infer_attractors = hparams.get_estimator(
+                    hparams.INFER_ATTRACTOR_METHOD)('infer_estimator')(s_embed)
+
+            s_separated_signals_log = do_separation(
+                s_mixed_signals_log, s_attractors, s_embed_flat)
+
+            if using_same_method:
+                s_separated_signals_log_infer = s_separated_signals_log
+            else:
+                s_separated_signals_log_infer = do_separation(
+                    s_mixed_signals_log, s_infer_attractors, s_embed_flat)
+
+            s_train_loss = ops.pit_mse_loss(
+                s_src_signals_log, s_separated_signals_log)
+            if using_same_method:
+                s_infer_loss = s_train_loss
+            else:
+                s_infer_loss = ops.pit_mse_loss(
+                    s_src_signals_log, s_separated_signals_log_infer)
 
 
         # ===============
@@ -287,7 +333,7 @@ class Model(object):
 
         # FIXME gan_loss summary is broken
         with tf.name_scope('summary'):
-            s_loss_summary = tf.summary.scalar('loss', s_loss)
+            s_loss_summary = tf.summary.scalar('loss', s_train_loss)
 
         # apply optimizer
         ozer = hparams.get_optimizer()(
@@ -296,7 +342,7 @@ class Model(object):
         v_params_li = tf.trainable_variables()
 
         op_sgd_step = ozer.minimize(
-            s_loss, var_list=v_params_li)
+            s_train_loss, var_list=v_params_li)
         self.op_init_params = tf.variables_initializer(v_params_li)
         self.op_init_states = tf.variables_initializer(
             list(self.s_states_di.values()))
@@ -306,13 +352,14 @@ class Model(object):
         train_summary = tf.summary.merge(
             [s_loss_summary])
         self.train_fetches = [
-            train_summary, dict(loss=s_loss),
+            train_summary,
+            dict(loss=s_train_loss),
             op_sgd_step]
 
         # TODO more test stuff
         self.test_feed_keys = self.train_feed_keys
         test_summary = tf.summary.merge([s_loss_summary])
-        self.test_fetches = [test_summary, dict(loss=s_loss)]
+        self.test_fetches = [test_summary, dict(loss=s_infer_loss)]
 
         # TODO inference code
         # self.infer_feed_keys = [s_mixed_signals, s_dropout_keep]
@@ -340,7 +387,8 @@ class Model(object):
             if not g_args.no_save_on_epoch:
                 if any(map(isnan, cli_report.values())):
                     if i_epoch:
-                        stdout.write('\nEpoch %d/%d got NAN values, restoring last checkpoint ... ')
+                        stdout.write(
+                            '\nEpoch %d/%d got NAN values, restoring last checkpoint ... ')
                         stdout.flush()
                         i_epoch -= 1
                         # FIXME: this path don't work windows

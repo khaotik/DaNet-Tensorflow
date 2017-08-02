@@ -2,6 +2,7 @@
 collection of commonly used Ops and layers
 '''
 from math import sqrt
+import itertools
 
 import tensorflow as tf
 
@@ -234,3 +235,63 @@ def batch_segment_mean(s_data, s_indices, n):
         tf.ones_like(s_indices_flat),
         s_indices_flat, n)
     return s_results / tf.cast(tf.expand_dims(s_weights, -1), hparams.FLOATX)
+
+
+def combinations(s_data, subset_size, total_size=None, name=None):
+    assert isinstance(subset_size, int)
+    assert subset_size > 0
+    if total_size is None:
+        total_size = s_data.get_shape().as_list()[0]
+
+    if total_size is None:
+        raise ValueError(
+            "tensor size on axis 0 is unknown,"
+            " please supply 'total_size'")
+    else:
+        assert isinstance(total_size, int)
+        assert subset_size <= total_size
+
+    v_combs = tf.constant(
+        list(itertools.combinations(range(total_size), subset_size)),
+        dtype=hparams.INTX,
+        name=('combs' if name is None else name))
+
+    return tf.gather(s_data, v_combs)
+
+
+def pit_mse_loss(s_x, s_y, pit_axis=1, perm_size=None, name='pit_loss'):
+    '''
+    Permutation invariant MSE loss, batched version
+
+    Args:
+        s_x: tensor
+        s_y: tensor
+        pit_axis: which axis permutations occur
+        perm_size: size of permutation, infer from tensor shape by default
+        name: string
+
+    Returns:
+        s_loss
+
+    '''
+    ndim = len(s_x.get_shape().as_list())
+    assert -ndim <= pit_axis < ndim
+    pit_axis %= ndim
+    assert pit_axis != 0
+    reduce_axes = [
+        i for i in range(1, ndim+1) if i not in [pit_axis, pit_axis+1]]
+    with tf.variable_scope(name):
+        v_perms = tf.constant(
+            list(itertools.permutations(range(hparams.MAX_N_SIGNAL))),
+            dtype=hparams.INTX)
+        s_perms_onehot = tf.one_hot(
+            v_perms, hparams.MAX_N_SIGNAL, dtype=hparams.FLOATX)
+
+        s_x = tf.expand_dims(s_x, pit_axis+1)
+        s_y = tf.expand_dims(s_y, pit_axis)
+        s_cross_loss = tf.reduce_mean(
+            tf.square(s_x - s_y), reduce_axes)
+        s_loss_sets = tf.einsum(
+            'bij,pij->bp', s_cross_loss, s_perms_onehot)
+        s_loss = tf.reduce_mean(tf.reduce_min(s_loss_sets, axis=1))
+    return s_loss

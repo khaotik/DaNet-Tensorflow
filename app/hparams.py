@@ -22,6 +22,12 @@ assert 0. < DROPOUT_KEEP_PROB <= 1.
 REG_SCALE = 1e-2  # regularization loss scale
 REG_TYPE = 'L2'  # regularization type, "L2", "L1" or "none"
 
+# "truth", "k-means", "fixed" or "anchor"
+TRAIN_ATTRACTOR_METHOD = 'anchor'
+# "k-means", "fixed", "anchor"
+INFER_ATTRACTOR_METHOD = 'anchor'
+NUM_ANCHOR = 4
+
 # check "modules.py" to see available sub-modules
 ENCODER_TYPE = 'bilstm-orig'
 OPTIMIZER_TYPE = 'adam'  # "sgd" or "adam"
@@ -43,6 +49,7 @@ import tensorflow as tf
 
 # registry
 encoder_registry = {}
+estimator_registry = {}
 ozer_registry = {}
 dataset_registry = {}
 
@@ -56,6 +63,17 @@ def register_encoder(name):
 
 def get_encoder():
     return encoder_registry[ENCODER_TYPE]
+
+
+def register_estimator(name):
+    def wrapper(cls):
+        estimator_registry[name] = cls
+        return cls
+    return wrapper
+
+
+def get_estimator(name):
+    return estimator_registry[name]
 
 
 def register_optimizer(name):
