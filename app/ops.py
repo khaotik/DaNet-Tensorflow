@@ -160,13 +160,14 @@ def lyr_gru_flat(
     return (s_cell_tp1,)
 
 
-def batch_snr(clear_signal, noisy_signal):
+def batch_snr(clear_signal, noisy_signal, is_complex=False):
     '''
     batched signal to noise raio, assuming zero mean
 
     Args:
         clear_signal: batched array
         noisy_signal: batched_array
+        is_complex: bool
 
     Returns: vector of shape [batch_size]
     '''
@@ -176,6 +177,10 @@ def batch_snr(clear_signal, noisy_signal):
     reduce_axes = list(range(1, ndim))
     assert len(noisy_signal_shp) == ndim
     noise = clear_signal - noisy_signal
+
+    if is_complex:
+        clear_signal = tf.abs(clear_signal)
+        noise = tf.abs(noise)
 
     if reduce_axes:
         signal_pwr = tf.reduce_mean(
@@ -271,10 +276,20 @@ def pit_mse_loss(s_x, s_y, pit_axis=1, perm_size=None, name='pit_loss'):
         name: string
 
     Returns:
-        s_loss
+        s_loss, v_perms, s_loss_sets_idx
+
+        s_loss: scalar loss
+        v_perms: constant int matrix of permutations
+        s_perm_sets_idx: int matrix, indicating selected permutations
 
     '''
-    ndim = len(s_x.get_shape().as_list())
+    x_shp = s_x.get_shape().as_list()
+    ndim = len(x_shp)
+
+    batch_size = x_shp[0]
+    if batch_size is None:
+        batch_size = hparams.BATCH_SIZE
+
     assert -ndim <= pit_axis < ndim
     pit_axis %= ndim
     assert pit_axis != 0
@@ -293,5 +308,12 @@ def pit_mse_loss(s_x, s_y, pit_axis=1, perm_size=None, name='pit_loss'):
             tf.square(s_x - s_y), reduce_axes)
         s_loss_sets = tf.einsum(
             'bij,pij->bp', s_cross_loss, s_perms_onehot)
-        s_loss = tf.reduce_mean(tf.reduce_min(s_loss_sets, axis=1))
-    return s_loss
+        s_loss_sets_idx = tf.argmin(s_loss_sets, axis=1)
+        s_loss = tf.gather_nd(
+            s_loss_sets,
+            tf.stack([
+                tf.range(hparams.BATCH_SIZE, dtype=tf.int64),
+                s_loss_sets_idx], axis=1))
+        s_loss = tf.reduce_mean(s_loss)
+    return s_loss, v_perms, s_loss_sets_idx
+

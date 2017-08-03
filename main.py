@@ -275,7 +275,10 @@ class Model(object):
                 s_src_signals, axis=1)
 
             s_src_signals_log = tf.log1p(tf.abs(s_src_signals))
-            s_mixed_signals_log = tf.log1p(tf.abs(s_mixed_signals))
+            s_mixed_signals_phase = tf.atan2(
+                tf.imag(s_mixed_signals), tf.real(s_mixed_signals))
+            s_mixed_signals_power = tf.abs(s_mixed_signals)
+            s_mixed_signals_log = tf.log1p(s_mixed_signals_power)
             # int[B, T, F]
             # float[B, T, F, E]
             s_embed = encoder(s_mixed_signals_log)
@@ -304,27 +307,75 @@ class Model(object):
                 hparams.TRAIN_ATTRACTOR_METHOD)
 
             if using_same_method:
-                s_infer_attractors = s_attractors
+                s_valid_attractors = s_attractors
             else:
-                s_infer_attractors = hparams.get_estimator(
+                s_valid_attractors = hparams.get_estimator(
                     hparams.INFER_ATTRACTOR_METHOD)('infer_estimator')(s_embed)
 
             s_separated_signals_log = do_separation(
                 s_mixed_signals_log, s_attractors, s_embed_flat)
 
             if using_same_method:
-                s_separated_signals_log_infer = s_separated_signals_log
+                s_separated_signals_log_valid = s_separated_signals_log
             else:
-                s_separated_signals_log_infer = do_separation(
-                    s_mixed_signals_log, s_infer_attractors, s_embed_flat)
+                s_separated_signals_log_valid = do_separation(
+                    s_mixed_signals_log, s_valid_attractors, s_embed_flat)
 
-            s_train_loss = ops.pit_mse_loss(
+            # get loss and SNR
+            s_train_loss, v_perms, s_perm_sets = ops.pit_mse_loss(
                 s_src_signals_log, s_separated_signals_log)
+            s_perm_idxs = tf.stack([
+                tf.tile(
+                    tf.expand_dims(tf.range(hparams.BATCH_SIZE), 1),
+                    [1, hparams.MAX_N_SIGNAL]),
+                tf.gather(v_perms, s_perm_sets)
+                ], axis=2)
+            s_perm_idxs = tf.reshape(
+                s_perm_idxs, [hparams.BATCH_SIZE*hparams.MAX_N_SIGNAL, 2])
+            s_separated_signals_log =tf.gather_nd(
+                s_separated_signals_log, s_perm_idxs)
+            s_separated_signals_log = tf.reshape(
+                s_separated_signals_log, [
+                    hparams.BATCH_SIZE,
+                    hparams.MAX_N_SIGNAL,
+                    -1, hparams.FEATURE_SIZE])
+
+            s_mixed_signals_phase = tf.expand_dims(s_mixed_signals_phase, 1)
+            s_separated_signals_pwr = tf.expm1(s_separated_signals_log)
+            s_separated_signals = tf.complex(
+                tf.cos(s_mixed_signals_phase) * s_separated_signals_pwr,
+                tf.sin(s_mixed_signals_phase) * s_separated_signals_pwr)
+            s_train_snr = tf.reduce_mean(ops.batch_snr(
+                s_src_signals, s_separated_signals, is_complex=True))
+
             if using_same_method:
-                s_infer_loss = s_train_loss
+                s_valid_loss = s_train_loss
+                s_valid_snr = s_train_snr
             else:
-                s_infer_loss = ops.pit_mse_loss(
-                    s_src_signals_log, s_separated_signals_log_infer)
+                s_valid_loss, v_perms, s_perm_sets = ops.pit_mse_loss(
+                    s_src_signals_log, s_separated_signals_log_valid)
+                s_perm_idxs = tf.stack([
+                    tf.tile(
+                        tf.expand_dims(tf.range(hparams.BATCH_SIZE), 1),
+                        [1, hparams.MAX_N_SIGNAL]),
+                    tf.gather(v_perms, s_perm_sets)],
+                    axis=2)
+                s_perm_idxs = tf.reshape(
+                    s_perm_idxs, [hparams.BATCH_SIZE*hparams.MAX_N_SIGNAL, 2])
+                s_separated_signals_log_valid =tf.gather_nd(
+                    s_separated_signals_log_valid, s_perm_idxs)
+                s_separated_signals_log_valid = tf.reshape(
+                    s_separated_signals_log_valid, [
+                        hparams.BATCH_SIZE,
+                        hparams.MAX_N_SIGNAL,
+                        -1, hparams.FEATURE_SIZE])
+
+                s_separated_signals_valid = tf.expand_dims(tf.complex(
+                    tf.cos(s_mixed_signals_phase),
+                    tf.sin(s_mixed_signals_phase)), 1)
+                s_separated_signals *= tf.expm1(s_separated_signals_log_valid)
+                s_valid_snr = tf.reduce_mean(ops.batch_snr(
+                    s_src_signals, s_separated_signals_valid, is_complex=True))
 
 
         # ===============
@@ -332,8 +383,13 @@ class Model(object):
         # TODO add impl & summary for word error rate
 
         # FIXME gan_loss summary is broken
-        with tf.name_scope('summary'):
-            s_loss_summary = tf.summary.scalar('loss', s_train_loss)
+        with tf.name_scope('train_summary'):
+            s_loss_summary_t = tf.summary.scalar('loss', s_train_loss)
+            s_snr_summary_t = tf.summary.scalar('SNR', s_train_snr)
+
+        with tf.name_scope('valid_summary'):
+            s_loss_summary_v = tf.summary.scalar('loss', s_valid_loss)
+            s_snr_summary_v = tf.summary.scalar('SNR', s_valid_snr)
 
         # apply optimizer
         ozer = hparams.get_optimizer()(
@@ -350,16 +406,17 @@ class Model(object):
         self.train_feed_keys = [
             s_src_signals, s_dropout_keep]
         train_summary = tf.summary.merge(
-            [s_loss_summary])
+            [s_loss_summary_t, s_snr_summary_t])
         self.train_fetches = [
             train_summary,
-            dict(loss=s_train_loss),
+            dict(loss=s_train_loss, SNR=s_train_snr),
             op_sgd_step]
 
-        # TODO more test stuff
-        self.test_feed_keys = self.train_feed_keys
-        test_summary = tf.summary.merge([s_loss_summary])
-        self.test_fetches = [test_summary, dict(loss=s_infer_loss)]
+        self.valid_feed_keys = self.train_feed_keys
+        valid_summary = tf.summary.merge([s_loss_summary_v, s_snr_summary_v])
+        self.valid_fetches = [
+            valid_summary,
+            dict(loss=s_valid_loss, SNR=s_valid_snr)]
 
         # TODO inference code
         # self.infer_feed_keys = [s_mixed_signals, s_dropout_keep]
@@ -404,24 +461,24 @@ class Model(object):
             stdout.write('\nEpoch %d/%d %s\n' % (
                 i_epoch+1, n_epoch, _dict_format(cli_report)))
             stdout.flush()
-            if g_args.no_test_on_epoch:
+            if g_args.no_valid_on_epoch:
                 continue
             cli_report = OrderedDict()
             for i_batch, data_pt in enumerate(dataset.epoch(
-                    'test',
+                    'valid',
                     hparams.BATCH_SIZE,
                     shuffle=False)):
                 # note: disable dropout during test
-                to_feed = dict(zip(self.train_feed_keys, data_pt + (1.,)))
+                to_feed = dict(zip(self.valid_feed_keys, data_pt + (1.,)))
                 step_summary, step_fetch = g_sess.run(
-                    self.test_fetches, to_feed)[:2]
+                    self.valid_fetches, to_feed)[:2]
                 self.reset_state()
                 train_writer.add_summary(step_summary)
                 stdout.write('.')
                 stdout.flush()
                 _dict_add(cli_report, step_fetch)
             _dict_mul(cli_report, 1. / (i_batch+1))
-            stdout.write('\nTest  %d/%d %s\n' % (
+            stdout.write('\nValid  %d/%d %s\n' % (
                 i_epoch+1, n_epoch, _dict_format(cli_report)))
             stdout.flush()
 
@@ -434,7 +491,7 @@ class Model(object):
                 'test', hparams.BATCH_SIZE * hparams.MAX_N_SIGNAL):
             to_feed = dict(zip(self.train_feed_keys, data_pt + (1.,)))
             step_summary, step_fetch = g_sess.run(
-                self.test_fetches, to_feed)[:2]
+                self.valid_fetches, to_feed)[:2]
             train_writer.add_summary(step_summary)
             stdout.write('.')
             stdout.flush()
@@ -475,8 +532,9 @@ def main():
         type=int, default=10, help='number of training epoch')
     parser.add_argument('--no-save-on-epoch',
         action='store_true', help="don't save parameter after each epoch")
-    parser.add_argument('--no-test-on-epoch',
-        action='store_true', help="don't sweep test set after training epoch")
+    parser.add_argument('--no-valid-on-epoch',
+        action='store_true',
+        help="don't sweep validation set after training epoch")
     parser.add_argument('-if', '--input-file',
         help='input WAV file for "demo" mode')
     g_args = parser.parse_args()
