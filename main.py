@@ -6,7 +6,7 @@ TODO docs
 from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import division
-from math import sqrt, isnan, factorial
+from math import sqrt, isnan
 import argparse
 from sys import stdout
 from collections import OrderedDict
@@ -287,7 +287,7 @@ class Model(object):
                 [hparams.BATCH_SIZE, -1, hparams.EMBED_SIZE])
 
             # TODO make attractor estimator a submodule ?
-            if hparams.TRAIN_ATTRACTOR_METHOD == 'truth':
+            if hparams.TRAIN_ESTIMATOR_METHOD == 'truth':
                 with tf.name_scope('attractor'):
                     s_src_assignment = tf.argmax(s_src_signals_log, axis=1)
                     s_indices = tf.reshape(
@@ -298,19 +298,19 @@ class Model(object):
                     # float[B, C, E]
                     s_attractors = tf.map_fn(
                         fn_segmean, (s_embed_flat, s_indices), hparams.FLOATX)
-            elif hparams.TRAIN_ATTRACTOR_METHOD == 'anchor':
+            elif hparams.TRAIN_ESTIMATOR_METHOD == 'anchor':
                 s_attractors = hparams.get_estimator(
                     'anchor')(self, 'train_estimator')(s_embed)
 
             using_same_method = (
-                hparams.INFER_ATTRACTOR_METHOD ==
-                hparams.TRAIN_ATTRACTOR_METHOD)
+                hparams.INFER_ESTIMATOR_METHOD ==
+                hparams.TRAIN_ESTIMATOR_METHOD)
 
             if using_same_method:
                 s_valid_attractors = s_attractors
             else:
                 s_valid_attractors = hparams.get_estimator(
-                    hparams.INFER_ATTRACTOR_METHOD)('infer_estimator')(s_embed)
+                    hparams.INFER_ESTIMATOR_METHOD)('infer_estimator')(s_embed)
 
             s_separated_signals_log = do_separation(
                 s_mixed_signals_log, s_attractors, s_embed_flat)
@@ -432,7 +432,8 @@ class Model(object):
             cli_report = OrderedDict()
             for i_batch, data_pt in enumerate(dataset.epoch(
                     'train', hparams.BATCH_SIZE, shuffle=True)):
-                to_feed = dict(zip(self.train_feed_keys, data_pt + (hparams.DROPOUT_KEEP_PROB,)))
+                to_feed = dict(
+                    zip(self.train_feed_keys, (data_pt[0], hparams.DROPOUT_KEEP_PROB)))
                 step_summary, step_fetch = g_sess.run(
                     self.train_fetches, to_feed)[:2]
                 self.reset_state()
@@ -469,7 +470,7 @@ class Model(object):
                     hparams.BATCH_SIZE,
                     shuffle=False)):
                 # note: disable dropout during test
-                to_feed = dict(zip(self.valid_feed_keys, data_pt + (1.,)))
+                to_feed = dict(zip(self.valid_feed_keys, (data_pt[0], 1.)))
                 step_summary, step_fetch = g_sess.run(
                     self.valid_fetches, to_feed)[:2]
                 self.reset_state()
@@ -489,7 +490,7 @@ class Model(object):
         cli_report = {}
         for data_pt in dataset.epoch(
                 'test', hparams.BATCH_SIZE * hparams.MAX_N_SIGNAL):
-            to_feed = dict(zip(self.train_feed_keys, data_pt + (1.,)))
+            to_feed = dict(zip(self.train_feed_keys, (data_pt[0], 1.)))
             step_summary, step_fetch = g_sess.run(
                 self.valid_fetches, to_feed)[:2]
             train_writer.add_summary(step_summary)
@@ -548,6 +549,8 @@ def main():
     stdout.flush()
 
     print('Encoder type: "%s"' % hparams.ENCODER_TYPE)
+    print('Training estimator type: "%s"' % hparams.TRAIN_ESTIMATOR_METHOD)
+    print('Inference estimator type: "%s"' % hparams.INFER_ESTIMATOR_METHOD)
 
     stdout.write('Building model ... ')
     stdout.flush()
