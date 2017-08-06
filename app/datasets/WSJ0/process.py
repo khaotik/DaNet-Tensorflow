@@ -50,7 +50,7 @@ def load_file(fname, smprate=16000):
     if smprate_real == smprate:
         data = data.astype(FLOATX)
     else:
-        newlen = ceil(len(data) * (smprate / smprate_real))
+        newlen = int(ceil(len(data) * (smprate / smprate_real)))
         # FIXME this resample is very slow on prime length
         data = scipy.signal.resample(data, newlen).astype(FLOATX)
     return data
