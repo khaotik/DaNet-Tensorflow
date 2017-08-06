@@ -1,0 +1,9 @@
+- Put orignal WSJ0 dataset under this directory, symlink is also OK. So the dataset is `app/datasets/WSJ0/WSJ0`
+  The dataset can either have orignal 15-CD structure, or have merge directories. Otherwise the directory structure
+  shouldn't be changed.
+  The orignal dataset has a paid license, so we can't put it here.
+
+- If you can't access Internet, then you should put `sph2pipe` program in this directory
+  With internet access, the install script will automatically download and compile it.
+
+- run install.sh, when completed, you can set `DATASET_TYPE='wsj0'` in `app/hparams.py`
