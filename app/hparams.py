@@ -1,18 +1,21 @@
 '''
 hyperparameters
 '''
+import numpy as np
+import scipy.signal
 
 # Hyperparameters are in CAPS
 # TODO use tf.app.flags to parse hyperparam from input
 #      or consider use json file to store hyperparams
+FLOATX = 'float32'  # default type for float
+INTX = 'int32'  # defualt type for int
+
 BATCH_SIZE = 8  # minibatch size
 MAX_N_SIGNAL = 3
 FFT_SIZE = 256  # segmenet size in STFT
 FFT_STRIDE = 64  # segmenet stride in STFT
+FFT_WND = np.sqrt(scipy.signal.hann(FFT_SIZE)).astype(FLOATX)
 EMBED_SIZE = 20  # embedding size
-
-FLOATX = 'float32'  # default type for float
-INTX = 'int32'  # defualt type for int
 
 RELU_LEAKAGE = 0.3  # how leaky relu is, 0 -> relu, 1 -> linear
 EPS = 1e-7  # to prevent sqrt() log() etc cause NaN
@@ -23,18 +26,18 @@ REG_SCALE = 1e-2  # regularization loss scale
 REG_TYPE = 'L2'  # regularization type, "L2", "L1" or "none"
 
 # "truth", "k-means", "fixed" or "anchor"
-TRAIN_ATTRACTOR_METHOD = 'anchor'
+TRAIN_ESTIMATOR_METHOD = 'anchor'
 # "k-means", "fixed", "anchor"
-INFER_ATTRACTOR_METHOD = 'anchor'
+INFER_ESTIMATOR_METHOD = 'anchor'
 NUM_ANCHOR = 4
 
 # check "modules.py" to see available sub-modules
 ENCODER_TYPE = 'bilstm-orig'
 OPTIMIZER_TYPE = 'adam'  # "sgd" or "adam"
 LR = 3e-4  # learn rate
-LR_DECAY = None
+LR_DECAY = None  # TODO
 
-DATASET_TYPE = 'toy'  # "toy", "timit", or "wsj0"
+DATASET_TYPE = 'timit'  # "toy", "timit", or "wsj0"
 
 SUMMARY_DIR = './logs'
 
