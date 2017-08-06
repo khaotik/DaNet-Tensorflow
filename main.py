@@ -1,5 +1,5 @@
 '''
-TensorFlow Implementation of "GAN for Single Source Audio Separation"
+TensorFlow Implementation of "Speaker-Independent Speech Separation with Deep Attractor Network"
 
 TODO docs
 '''

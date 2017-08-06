@@ -93,7 +93,7 @@ class TimitDataset(Dataset):
     def install_and_load(self):
         # TODO automatically install if fails to find anything
         FILE_NOT_FOUND_MSG = (
-            'Did not found TIMIT %s file'
+            'Did not found TIMIT file "%s"'
             ', make sure you download and install the dataset')
         self.subset = {}
         path = os.path.join(os.path.dirname(__file__), 'TIMIT', '%s_set.pkl')
