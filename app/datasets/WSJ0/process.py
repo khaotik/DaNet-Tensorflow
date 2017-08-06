@@ -15,7 +15,7 @@ SMPRATE = 8000
 FLOATX = 'float32'
 MAX_MIX_SNR = 5.  # max mixture SNR in Db
 SEED = 1337
-DEBUG = True
+DEBUG = False
 FILENAME = 'wsj0-danet.hdf5'
 
 g_gender_di = {
