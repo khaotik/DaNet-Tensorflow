@@ -18,7 +18,6 @@ class Wsj0Dataset(Dataset):
     def install_and_load(self):
         path = os.path.join(
             os.path.dirname(__file__), 'WSJ0', 'wsj0-danet.hdf5')
-        import pdb; pdb.set_trace()
         self.h5file = h5py.File(path, 'r')
         train_set = H5PYDataset(
             self.h5file, which_sets=('train',))
@@ -44,7 +43,7 @@ class Wsj0Dataset(Dataset):
             ((dset_size + batch_size - 1) // batch_size)*batch_size)
         indices %= dset_size
         if shuffle:
-            indices = np.random.shuffle(indices)
+            np.random.shuffle(indices)
         req_itor = SequentialScheme(
             examples=indices, batch_size=batch_size).get_request_iterator()
         for req in req_itor:
