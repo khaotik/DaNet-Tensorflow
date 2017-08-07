@@ -11,7 +11,7 @@ FLOATX = 'float32'  # default type for float
 INTX = 'int32'  # defualt type for int
 
 BATCH_SIZE = 8  # minibatch size
-MAX_N_SIGNAL = 3
+MAX_N_SIGNAL = 2
 FFT_SIZE = 256  # segmenet size in STFT
 FFT_STRIDE = 64  # segmenet stride in STFT
 FFT_WND = np.sqrt(scipy.signal.hann(FFT_SIZE)).astype(FLOATX)
@@ -37,7 +37,7 @@ OPTIMIZER_TYPE = 'adam'  # "sgd" or "adam"
 LR = 3e-4  # learn rate
 LR_DECAY = None  # TODO
 
-DATASET_TYPE = 'timit'  # "toy", "timit", or "wsj0"
+DATASET_TYPE = 'wsj0'  # "toy", "timit", or "wsj0"
 
 SUMMARY_DIR = './logs'
 

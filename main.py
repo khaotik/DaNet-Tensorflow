@@ -431,9 +431,15 @@ class Model(object):
         for i_epoch in range(n_epoch):
             cli_report = OrderedDict()
             for i_batch, data_pt in enumerate(dataset.epoch(
-                    'train', hparams.BATCH_SIZE, shuffle=True)):
+                    'train', hparams.BATCH_SIZE * hparams.MAX_N_SIGNAL, shuffle=True)):
+                max_len = max(map(len, data_pt[0]))
+                spectra = np.stack(
+                    [np.pad(x, [(0, (-len(x))%max_len), (0,0)], mode='constant') for x in data_pt[0]])
+                spectra = np.reshape(
+                    spectra,
+                    [hparams.BATCH_SIZE, hparams.MAX_N_SIGNAL, max_len, hparams.FEATURE_SIZE])
                 to_feed = dict(
-                    zip(self.train_feed_keys, (data_pt[0], hparams.DROPOUT_KEEP_PROB)))
+                    zip(self.train_feed_keys, (spectra, hparams.DROPOUT_KEEP_PROB)))
                 step_summary, step_fetch = g_sess.run(
                     self.train_fetches, to_feed)[:2]
                 self.reset_state()
