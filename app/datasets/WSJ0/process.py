@@ -2,7 +2,7 @@ from __future__ import division, print_function
 from math import ceil, sqrt
 import os
 import random
-from sys import stdout
+from sys import stdout, stderr
 
 import numpy as np
 import scipy.signal
@@ -150,13 +150,16 @@ def add_subset(name, names_li):
     for i, fname in enumerate(train_names_li):
         if i>5 and DEBUG:
             break
-        if err_cnt > 100:
-            raise RuntimeError('Too many file reading failure, abort.')
 
         try:
             wav = load_file(fname, SMPRATE)
-        except RuntimeError:
+        except:
             err_cnt += 1
+            if err_cnt > 100:
+                stderr.write(
+                    'Too many file reading failure, abort.'
+                    ' Raising lastest exception:\n')
+                raise
             continue
 
         spectra = scipy.signal.stft(
