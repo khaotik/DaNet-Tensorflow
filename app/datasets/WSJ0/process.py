@@ -49,6 +49,13 @@ def load_file(fname, smprate=16000):
     smprate_real, data = scipy.io.wavfile.read('speech.wav')
     if smprate_real == smprate:
         data = data.astype(FLOATX)
+    elif (smprate_real % smprate) == 0:
+        # integer factor downsample
+        smpfactor = smprate_real // smprate
+        data = np.pad(
+            data, [(0, (-len(data)) % smpfactor)], mode='constant')
+        data = np.reshape(data, [len(data)//smpfactor, smpfactor])
+        data = np.mean(data.astype(FLOATX), axis=1)
     else:
         newlen = int(ceil(len(data) * (smprate / smprate_real)))
         # FIXME this resample is very slow on prime length
