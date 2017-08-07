@@ -147,7 +147,7 @@ def add_subset(name, names_li):
         'length'.encode('utf8'),
         'fft_size'.encode('utf8')]
     err_cnt = 0
-    for i, fname in enumerate(train_names_li):
+    for i, fname in enumerate(names_li):
         if i>5 and DEBUG:
             break
 
