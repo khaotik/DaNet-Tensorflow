@@ -547,7 +547,7 @@ def main():
     global g_args, g_model, g_dataset
     parser = argparse.ArgumentParser()
     parser.add_argument('-n', '--name',
-        default='UnamedExperiment',
+        default='UnnamedExperiment',
         help='name of experiment, affects checkpoint saves')
     parser.add_argument('-m', '--mode',
         default='train', help='Mode, "train", "test", "demo" or "interactive"')
@@ -564,9 +564,14 @@ def main():
         help="don't sweep validation set after training epoch")
     parser.add_argument('-if', '--input-file',
         help='input WAV file for "demo" mode')
+    parser.add_argument('-ds', '--dataset',
+        help='choose dataset to use, overrides hparams.DATASET_TYPE')
     g_args = parser.parse_args()
 
     # TODO manage device
+
+    if g_args.dataset is not None:
+        hparams.DATASET_TYPE = g_args.dataset
     stdout.write('Preparing dataset "%s" ... ' % hparams.DATASET_TYPE)
     stdout.flush()
     g_dataset = hparams.get_dataset()()
