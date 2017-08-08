@@ -1,3 +1,9 @@
+WSJ0 dataset
+
+**WARNING** If you change `FFT_SIZE`, `FFT_STRIDE`, `FFT_WND`, `SMP_RATE`
+in `hparams.py`, you should also change them in `process.py`, then redo the preprocessing
+
+
 - You need h5py and fuel
 
     h5py is available via pip: `pip install h5py`
@@ -14,4 +20,4 @@
 - If you can't access Internet, then you should put `sph2pipe` program in this directory
   With internet access, the install script will automatically download and compile it.
 
-- run install.sh, when completed, you can set `DATASET_TYPE='wsj0'` in `app/hparams.py`
+- run `install.sh`, when completed, you can set `DATASET_TYPE='wsj0'` in `app/hparams.py`

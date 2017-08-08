@@ -1,0 +1,20 @@
+TIMIT dataset
+
+**WARNING** If you change `FFT_SIZE`, `FFT_STRIDE`, `FFT_WND`, `SMP_RATE`
+in `hparams.py`, you should also change them in `process.py`, then redo the preprocessing
+
+0. you need `sndfile-convert` utility.
+
+On Ubuntu, do
+
+`apt-get install sndfile-programs`
+
+Source code is available at:
+
+https://github.com/erikd/libsndfile
+
+1. put `TIMIT.zip` here
+
+2. run `install.sh`
+
+3. when completed, you can set `DATASET_TYPE='timit'` in `app/hparams.py`

@@ -59,7 +59,7 @@ Most of settings are self explanatory, or commented in code.
 
 **Note** If you get out of memory (OOM) error from tensorflow, you can try using a lower `BATCH_SIZE`.
 
-**Note** If you change `FFT_SIZE`, `FFT_STRIDE`, `FFT_STRIDE`, `SMP_RATE`,
+**Note** If you change `FFT_SIZE`, `FFT_STRIDE`, `FFT_WND`, `SMP_RATE`,
 you should do dataset preprocessing again.
 
 **Note** If you change model architecture, the previously saved model parameter may not be compatible.
@@ -162,6 +162,9 @@ To change overall model architecture, modify `Model.build()` in `main.py`
 
 - We use WSJ0 `si_tr_s` / `si_dt_05` / `si_et_05` subsets as training / validation / test set respectively.
   The speakers are randomly chosen and mixed at runtime.
-  This is slightly different than the setup in orignal paper.
+
+  This setup is slightly different to orignal paper.
 
 - Only single GPU training is implemented.
+
+- Doesn't work on Windows.
