@@ -410,9 +410,13 @@ class Model(object):
             learn_rate=hparams.LR, lr_decay=hparams.LR_DECAY)
 
         v_params_li = tf.trainable_variables()
+        r_apply_grads = ozer.compute_gradients(s_train_loss, v_params_li)
+        if hparams.GRAD_CLIP_THRES is not None:
+            r_apply_grads = [(tf.clip_by_value(
+                g, -hparams.GRAD_CLIP_THRES, hparams.GRAD_CLIP_THRES), v)
+                for g, v in r_apply_grads]
+        self.op_sgd_step = ozer.apply_gradients(r_apply_grads)
 
-        op_sgd_step = ozer.minimize(
-            s_train_loss, var_list=v_params_li)
         self.op_init_params = tf.variables_initializer(v_params_li)
         self.op_init_states = tf.variables_initializer(
             list(self.s_states_di.values()))
@@ -424,7 +428,7 @@ class Model(object):
         self.train_fetches = [
             train_summary,
             dict(loss=s_train_loss, SNR=s_train_snr),
-            op_sgd_step]
+            self.op_sgd_step]
 
         self.valid_feed_keys = self.train_feed_keys
         valid_summary = tf.summary.merge([s_loss_summary_v, s_snr_summary_v])

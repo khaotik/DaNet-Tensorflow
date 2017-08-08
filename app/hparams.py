@@ -26,6 +26,9 @@ assert 0. < DROPOUT_KEEP_PROB <= 1.
 REG_SCALE = 1e-2  # regularization loss scale
 REG_TYPE = 'L2'  # regularization type, "L2", "L1" or "none"
 
+# clamp absolute gradient value within this value, None for no clip
+GRAD_CLIP_THRES = 100.
+
 # "truth", "k-means", "fixed" or "anchor"
 TRAIN_ESTIMATOR_METHOD = 'anchor'
 # "k-means", "fixed", "anchor"
