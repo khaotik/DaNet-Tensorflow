@@ -115,6 +115,23 @@ file.wav file_separated_1.wav file_separated_2.wav
 
  - Make a subclass of `app.datasets.dataset.Dataset`
 
+```python
+@hparams.register_dataset('my_dataset')
+class MyDataset(Dataset):
+    ...
+```
+
+You can use `app/datasets/timit.py` as an reference.
+
+ - In `app/datasets/__init__.py`, add:
+
+```python
+import app.datasets.my_dataset
+```
+
+ - To use your dataset, set `DATASET_TYPE='my_dataset'` in `app/hparams.py`
+
+
 ### Customize model
 
 You can make subclass of `Estimator` or `Encoder` to tweak model.
@@ -134,24 +151,6 @@ Make sure to use `@register_*` decorator for your class.
 See code in `app/modules.py` for details. There are existing sub-modules.
 
 To change overall model architecture, modify `Model.build()` in `main.py`
-
-
-```python
-@hparams.register_dataset('my_dataset')
-class MyDataset(Dataset):
-    ...
-```
-
-
-You can use `app/datasets/timit.py` as an reference.
-
- - In `app/datasets/__init__.py`, add:
-
-```python
-import app.datasets.my_dataset
-```
-
- - To use your dataset, set `DATASET_TYPE='my_dataset'` in `app/hparams.py`
 
 
 ## Limitations
