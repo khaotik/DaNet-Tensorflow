@@ -96,3 +96,27 @@ def batch_wer(x, y, fn_decoder):
     return z
 
 
+def istft(X, stride, window):
+    """
+    Inverse short-time fourier transform.
+
+    Args:
+        X: complex matrix of shape (length, 1 + fft_size//2)
+
+        stride: integer
+
+        window: 1D array, should be (X.shape[1] - 1) * 2
+
+    Returns:
+        floating-point waveform samples (1D array)
+    """
+    fftsize = (X.shape[1] - 1) * 2
+    x = np.zeros(X.shape[0]*stride)
+    wsum = np.zeros(X.shape[0]*stride)
+    for n, i in enumerate(range(0, len(x)-fftsize, stride)):
+        x[i:i+fftsize] += np.real(np.fft.irfft(X[n])) * window   # overlap-add
+        wsum[i:i+fftsize] += window ** 2.
+    pos = wsum != 0
+    x[pos] /= wsum[pos]
+    return x
+
