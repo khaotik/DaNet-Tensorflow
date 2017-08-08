@@ -317,3 +317,4 @@ def pit_mse_loss(s_x, s_y, pit_axis=1, perm_size=None, name='pit_loss'):
         s_loss = tf.reduce_mean(s_loss)
     return s_loss, v_perms, s_loss_sets_idx
 
+

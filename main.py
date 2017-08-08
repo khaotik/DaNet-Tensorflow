@@ -6,7 +6,7 @@ TODO docs
 from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import division
-from math import sqrt, isnan
+from math import sqrt, isnan, ceil
 import argparse
 from sys import stdout
 from collections import OrderedDict
@@ -56,7 +56,7 @@ def _dict_format(di):
 
 def load_wavfile(filename):
     '''
-    This loads a WAV file, resamples to 16k/sec rate,
+    This loads a WAV file, resamples to hparams.SMPRATE,
     then preprocess it
 
     Args:
@@ -71,7 +71,17 @@ def load_wavfile(filename):
                 'WAV file not specified, '
                 'please specify via --input-file argument.')
     smprate, data = scipy.io.wavfile.read(filename)
-    raise NotImplementedError()
+    fft_size = hparams.FFT_SIZE
+    fft_stride = hparams.FFT_STRIDE
+    if smprate != hparams.SMPRATE:
+        data = scipy.signal.resample(
+            data, int(ceil(len(data) * hparams.SMPRATE / smprate)))
+    Zxx = scipy.signal.stft(
+        data,
+        window=hparams.FFT_WND,
+        nperseg=fft_size,
+        noverlap=fft_size - fft_stride)[2]
+    return Zxx.astype(hparams.COMPLEXX).T
 
 
 def save_wavfile(filename, feature):
@@ -82,7 +92,9 @@ def save_wavfile(filename, feature):
         filename: string
         feature: 2D float array of shape [time, FEATURE_SIZE]
     '''
-    raise NotImplementedError()
+    data = utils.istft(
+        feature, stride=hparams.FFT_STRIDE, window=hparams.FFT_WND)
+    scipy.io.wavfile.write(filename, hparams.SMPRATE, data)
 
 
 def do_separation(s_mixed_signals_log, s_attractors, s_embed_flat):
@@ -321,15 +333,14 @@ class Model(object):
                 s_separated_signals_log_valid = do_separation(
                     s_mixed_signals_log, s_valid_attractors, s_embed_flat)
 
-            # get loss and SNR
+            # loss and SNR for training
             s_train_loss, v_perms, s_perm_sets = ops.pit_mse_loss(
                 s_src_signals_log, s_separated_signals_log)
             s_perm_idxs = tf.stack([
                 tf.tile(
                     tf.expand_dims(tf.range(hparams.BATCH_SIZE), 1),
                     [1, hparams.MAX_N_SIGNAL]),
-                tf.gather(v_perms, s_perm_sets)
-                ], axis=2)
+                tf.gather(v_perms, s_perm_sets)], axis=2)
             s_perm_idxs = tf.reshape(
                 s_perm_idxs, [hparams.BATCH_SIZE*hparams.MAX_N_SIGNAL, 2])
             s_separated_signals_log =tf.gather_nd(
@@ -348,34 +359,37 @@ class Model(object):
             s_train_snr = tf.reduce_mean(ops.batch_snr(
                 s_src_signals, s_separated_signals, is_complex=True))
 
-            if using_same_method:
-                s_valid_loss = s_train_loss
-                s_valid_snr = s_train_snr
-            else:
-                s_valid_loss, v_perms, s_perm_sets = ops.pit_mse_loss(
-                    s_src_signals_log, s_separated_signals_log_valid)
-                s_perm_idxs = tf.stack([
-                    tf.tile(
-                        tf.expand_dims(tf.range(hparams.BATCH_SIZE), 1),
-                        [1, hparams.MAX_N_SIGNAL]),
-                    tf.gather(v_perms, s_perm_sets)],
-                    axis=2)
-                s_perm_idxs = tf.reshape(
-                    s_perm_idxs, [hparams.BATCH_SIZE*hparams.MAX_N_SIGNAL, 2])
-                s_separated_signals_log_valid =tf.gather_nd(
-                    s_separated_signals_log_valid, s_perm_idxs)
-                s_separated_signals_log_valid = tf.reshape(
-                    s_separated_signals_log_valid, [
-                        hparams.BATCH_SIZE,
-                        hparams.MAX_N_SIGNAL,
-                        -1, hparams.FEATURE_SIZE])
+            # ^ for validation / inference
+            s_valid_loss, v_perms, s_perm_sets = ops.pit_mse_loss(
+                s_src_signals_log, s_separated_signals_log_valid)
+            s_perm_idxs = tf.stack([
+                tf.tile(
+                    tf.expand_dims(tf.range(hparams.BATCH_SIZE), 1),
+                    [1, hparams.MAX_N_SIGNAL]),
+                tf.gather(v_perms, s_perm_sets)],
+                axis=2)
+            s_perm_idxs = tf.reshape(
+                s_perm_idxs, [hparams.BATCH_SIZE*hparams.MAX_N_SIGNAL, 2])
+            s_separated_signals_log_valid_pit = tf.gather_nd(
+                s_separated_signals_log_valid, s_perm_idxs)
+            s_separated_signals_log_valid_pit = tf.reshape(
+                s_separated_signals_log_valid_pit, [
+                    hparams.BATCH_SIZE,
+                    hparams.MAX_N_SIGNAL,
+                    -1, hparams.FEATURE_SIZE])
+            s_separated_signals_pwr_valid = tf.expm1(
+                s_separated_signals_log_valid_pit)
+            s_separated_signals_pwr_infer = tf.expm1(
+                s_separated_signals_log_valid)
 
-                s_separated_signals_valid = tf.expand_dims(tf.complex(
-                    tf.cos(s_mixed_signals_phase),
-                    tf.sin(s_mixed_signals_phase)), 1)
-                s_separated_signals *= tf.expm1(s_separated_signals_log_valid)
-                s_valid_snr = tf.reduce_mean(ops.batch_snr(
-                    s_src_signals, s_separated_signals_valid, is_complex=True))
+            s_separated_signals_valid = tf.complex(
+                tf.cos(s_mixed_signals_phase) * s_separated_signals_pwr_valid,
+                tf.sin(s_mixed_signals_phase) * s_separated_signals_pwr_valid)
+            s_separated_signals_infer = tf.complex(
+                tf.cos(s_mixed_signals_phase) * s_separated_signals_pwr_infer,
+                tf.sin(s_mixed_signals_phase) * s_separated_signals_pwr_infer)
+            s_valid_snr = tf.reduce_mean(ops.batch_snr(
+                s_src_signals, s_separated_signals_valid, is_complex=True))
 
 
         # ===============
@@ -418,9 +432,8 @@ class Model(object):
             valid_summary,
             dict(loss=s_valid_loss, SNR=s_valid_snr)]
 
-        # TODO inference code
-        # self.infer_feed_keys = [s_mixed_signals, s_dropout_keep]
-        # self.infer_fetches = dict(signals=s_separated_signals)
+        self.infer_feed_keys = [s_mixed_signals, s_dropout_keep]
+        self.infer_fetches = dict(signals=s_separated_signals_infer)
 
         self.saver = tf.train.Saver(var_list=v_params_li)
 
@@ -431,15 +444,12 @@ class Model(object):
         for i_epoch in range(n_epoch):
             cli_report = OrderedDict()
             for i_batch, data_pt in enumerate(dataset.epoch(
-                    'train', hparams.BATCH_SIZE * hparams.MAX_N_SIGNAL, shuffle=True)):
-                max_len = max(map(len, data_pt[0]))
-                spectra = np.stack(
-                    [np.pad(x, [(0, (-len(x))%max_len), (0,0)], mode='constant') for x in data_pt[0]])
-                spectra = np.reshape(
-                    spectra,
-                    [hparams.BATCH_SIZE, hparams.MAX_N_SIGNAL, max_len, hparams.FEATURE_SIZE])
+                    'train',
+                    hparams.BATCH_SIZE * hparams.MAX_N_SIGNAL, shuffle=True)):
                 to_feed = dict(
-                    zip(self.train_feed_keys, (spectra, hparams.DROPOUT_KEEP_PROB)))
+                    zip(self.train_feed_keys, (
+                        np.reshape(data_pt[0], [hparams.BATCH_SIZE, hparams.MAX_N_SIGNAL, -1, hparams.FEATURE_SIZE]),
+                        hparams.DROPOUT_KEEP_PROB)))
                 step_summary, step_fetch = g_sess.run(
                     self.train_fetches, to_feed)[:2]
                 self.reset_state()
@@ -473,10 +483,12 @@ class Model(object):
             cli_report = OrderedDict()
             for i_batch, data_pt in enumerate(dataset.epoch(
                     'valid',
-                    hparams.BATCH_SIZE,
-                    shuffle=False)):
-                # note: disable dropout during test
-                to_feed = dict(zip(self.valid_feed_keys, (data_pt[0], 1.)))
+                    hparams.BATCH_SIZE, shuffle=False)):
+                # note: this disables dropout during validation
+                to_feed = dict(
+                    zip(self.train_feed_keys, (
+                        np.reshape(data_pt[0], [hparams.BATCH_SIZE, hparams.MAX_N_SIGNAL, -1, hparams.FEATURE_SIZE]),
+                        1.)))
                 step_summary, step_fetch = g_sess.run(
                     self.valid_fetches, to_feed)[:2]
                 self.reset_state()
@@ -492,11 +504,15 @@ class Model(object):
     def test(self, dataset):
         global g_args
         train_writer = tf.summary.FileWriter(
-            hparams.ASR_SUMMARY_DIR, g_sess.graph)
+            hparams.SUMMARY_DIR, g_sess.graph)
         cli_report = {}
         for data_pt in dataset.epoch(
                 'test', hparams.BATCH_SIZE * hparams.MAX_N_SIGNAL):
-            to_feed = dict(zip(self.train_feed_keys, (data_pt[0], 1.)))
+            # note: this disables dropout during test
+            to_feed = dict(
+                zip(self.train_feed_keys, (
+                    np.reshape(data_pt[0], [hparams.BATCH_SIZE, hparams.MAX_N_SIGNAL, -1, hparams.FEATURE_SIZE]),
+                    1.)))
             step_summary, step_fetch = g_sess.run(
                 self.valid_fetches, to_feed)[:2]
             train_writer.add_summary(step_summary)
@@ -561,6 +577,11 @@ def main():
     stdout.write('Building model ... ')
     stdout.flush()
     g_model = Model(name=g_args.name)
+    if g_args.mode == 'demo':
+        hparams.BATCH_SIZE = 1
+        print(
+            '\n  Warning: setting hparams.BATCH_SIZE to 1 for "demo" mode'
+            '\n... ', end='')
     g_model.build()
     stdout.write('done\n')
 
@@ -588,23 +609,25 @@ def main():
         # prepare data point
         if g_args.input_file is None:
             filename = 'demo.wav'
-            for features in g_dataset.epoch('test', hparams.MAX_N_SIGNAL):
+            for mixture in g_dataset.epoch('test', hparams.MAX_N_SIGNAL):
                 break
-            save_wavfile(filename, features[0][0] + features[0][1])
-            features = np.sum(features[0], axis=0, keepdims=True)
+            max_len = max(map(len, mixture[0]))
+            mixture_li = [np.pad(x, [(0, max_len - len(x)), (0,0)], mode='constant') for x in mixture[0]]
+            mixture = np.stack(mixture_li)
+            mixture = np.sum(mixture, axis=0)
+            save_wavfile(filename, mixture)
         else:
             filename = g_args.input_file
-            features = load_wavfile(g_args.input_file)
+            mixture = load_wavfile(g_args.input_file)
 
         # run with inference mode and save results
-        # TODO this has to use whole BATCH_SIZE, inefficient !
-        data_pt = (np.tile(features, [hparams.BATCH_SIZE] + [1]*2),)
+        data_pt = (np.expand_dims(mixture, 0),)
         result = g_sess.run(
             g_model.infer_fetches,
             dict(zip(
                 g_model.infer_feed_keys,
                 data_pt + (hparams.DROPOUT_KEEP_PROB,))))
-        signals = result['signals'][:(hparams.MAX_N_SIGNAL+1)]
+        signals = result['signals'][0]
         filename, fileext = os.path.splitext(filename)
         for i, s in enumerate(signals):
             save_wavfile(

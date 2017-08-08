@@ -15,6 +15,7 @@ MAX_N_SIGNAL = 2
 FFT_SIZE = 256  # segmenet size in STFT
 FFT_STRIDE = 64  # segmenet stride in STFT
 FFT_WND = np.sqrt(scipy.signal.hann(FFT_SIZE)).astype(FLOATX)
+SMPRATE = 8000  # sampling rate
 EMBED_SIZE = 20  # embedding size
 
 RELU_LEAKAGE = 0.3  # how leaky relu is, 0 -> relu, 1 -> linear

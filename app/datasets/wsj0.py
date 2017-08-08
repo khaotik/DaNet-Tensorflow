@@ -48,5 +48,15 @@ class Wsj0Dataset(Dataset):
             examples=indices, batch_size=batch_size).get_request_iterator()
         for req in req_itor:
             data_pt = dataset.get_data(handle, req)
-            yield data_pt
+            max_len = max(map(len, data_pt[0]))
+            spectra_li = [np.pad(
+                x, [(0, max_len - len(x)), (0, 0)],
+                mode='constant') for x in data_pt[0]]
+            spectra = np.stack(spectra_li)
+            spectra = np.reshape(
+                spectra, [
+                    hparams.BATCH_SIZE,
+                    hparams.MAX_N_SIGNAL,
+                    max_len, hparams.FEATURE_SIZE])
+            yield (spectra,)
         dataset.close(handle)
