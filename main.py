@@ -7,6 +7,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import division
 from math import sqrt, isnan, ceil
+from random import randint
 import argparse
 from sys import stdout
 from collections import OrderedDict
@@ -450,10 +451,19 @@ class Model(object):
             for i_batch, data_pt in enumerate(dataset.epoch(
                     'train',
                     hparams.BATCH_SIZE * hparams.MAX_N_SIGNAL, shuffle=True)):
+                spectra = np.reshape(
+                    data_pt[0], [
+                        hparams.BATCH_SIZE,
+                        hparams.MAX_N_SIGNAL,
+                        -1, hparams.FEATURE_SIZE])
+                if hparams.MAX_TRAIN_LEN is not None:
+                    if spectra.shape[2] > hparams.MAX_TRAIN_LEN:
+                        beg = randint(
+                            0, spectra.shape[2] - hparams.MAX_TRAIN_LEN-1)
+                        spectra = spectra[:, :, beg:beg+hparams.MAX_TRAIN_LEN]
                 to_feed = dict(
                     zip(self.train_feed_keys, (
-                        np.reshape(data_pt[0], [hparams.BATCH_SIZE, hparams.MAX_N_SIGNAL, -1, hparams.FEATURE_SIZE]),
-                        hparams.DROPOUT_KEEP_PROB)))
+                        spectra, hparams.DROPOUT_KEEP_PROB)))
                 step_summary, step_fetch = g_sess.run(
                     self.train_fetches, to_feed)[:2]
                 self.reset_state()
