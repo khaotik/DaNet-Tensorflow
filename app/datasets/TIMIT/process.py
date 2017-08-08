@@ -1,6 +1,5 @@
 import os
 import string
-import gzip
 from sys import stdout
 from six.moves import cPickle as pickle
 
@@ -11,7 +10,12 @@ import scipy.signal as signal
 # TODO add license from tensorpack/examples/CTC-TIMIT
 
 # TODO merge these with py file
+FLOATX = 'float32'
+COMPLEXX = dict(float32='complex64', float64='complex128')[FLOATX]
 FFT_SIZE = 256
+FFT_STRIDE = 64
+FFT_WND = np.sqrt(signal.hanning(FFT_SIZE))
+SMPRATE = 8000
 EPS = 1e-7
 
 # "$" means end of text/phoneme
@@ -27,6 +31,31 @@ WORD_DIC = {v: k for k, v in enumerate(CHARSET)}
 
 INTX = 'int32'
 FLOATX = 'float32'
+
+def load_wav_file(fname, smprate=16000):
+    '''
+    load a WAV file, then return a numpy float32 vector.
+    Resample if needed.
+
+    The returned array will always have lenght of multiples of FFT_SIZE
+    to ease preprocessing, this is done via zero padding at the end.
+
+    '''
+    smprate_real, data = wavfile.read(fname)
+    if smprate_real == smprate:
+        data = data.astype(FLOATX)
+    elif (smprate_real % smprate) == 0:
+        # integer factor downsample
+        smpfactor = smprate_real // smprate
+        data = np.pad(
+            data, [(0, (-len(data)) % smpfactor)], mode='constant')
+        data = np.reshape(data, [len(data)//smpfactor, smpfactor])
+        data = np.mean(data.astype(FLOATX), axis=1)
+    else:
+        newlen = int(ceil(len(data) * (smprate / smprate_real)))
+        # FIXME this resample is very slow on prime length
+        data = scipy.signal.resample(data, newlen).astype(FLOATX)
+    return data
 
 
 def read_timit_txt(f):
@@ -59,17 +88,19 @@ for fname in train_files:
         continue
     if fname.startswith('sa'):
         continue
-    fm, waveform = wavfile.read(fname)
-    if fm != 16000:
-        raise ValueError('Sampling rate must be 16k')
-    Zxx = signal.stft(waveform, nperseg=FFT_SIZE)[2].astype('complex64')
+
+    waveform = load_wav_file(fname, smprate=SMPRATE)
+    Zxx = signal.stft(
+        waveform,
+        window=FFT_WND,
+        nperseg=FFT_SIZE,
+        noverlap=FFT_SIZE-FFT_STRIDE)[2].astype(COMPLEXX).T
     with open(fname.upper().replace('.WAV', '.TXT'), 'r') as f:
         text = read_timit_txt(f)
-
     with open(fname.upper().replace('.WAV', '.PHN'), 'r') as f:
         phoneme = read_timit_phoneme(f)
 
-    train_signals.append(np.transpose(Zxx[:(FFT_SIZE//2+1)]))
+    train_signals.append(Zxx)
     train_texts.append(text)
     train_phonemes.append(phoneme)
 
@@ -86,17 +117,20 @@ for fname in test_files:
         continue
     if fname.startswith('sa'):
         continue
-    fm, waveform = wavfile.read(fname)
-    if fm != 16000:
-        raise ValueError('Sampling rate must be 16k')
-    Zxx = signal.stft(waveform, nperseg=FFT_SIZE)[2].astype('complex64')
+
+    waveform = load_wav_file(fname, smprate=SMPRATE)
+    Zxx = signal.stft(
+        waveform,
+        window=FFT_WND,
+        nperseg=FFT_SIZE,
+        noverlap=FFT_SIZE-FFT_STRIDE)[2].astype(COMPLEXX).T
     with open(fname.upper().replace('.WAV', '.TXT')) as f:
         text = read_timit_txt(f)
 
     with open(fname.upper().replace('.WAV', '.PHN')) as f:
         phoneme = read_timit_phoneme(f)
 
-    test_signals.append(np.transpose(Zxx[:(FFT_SIZE//2+1)]))
+    test_signals.append(Zxx)
     test_texts.append(text)
     test_phonemes.append(phoneme)
 
