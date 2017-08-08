@@ -32,6 +32,7 @@ TRAIN_ESTIMATOR_METHOD = 'anchor'
 INFER_ESTIMATOR_METHOD = 'anchor'
 NUM_ANCHOR = 4
 
+# ENCODER_TYPE can be "bilstm-orig"
 # check "modules.py" to see available sub-modules
 ENCODER_TYPE = 'bilstm-orig'
 OPTIMIZER_TYPE = 'adam'  # "sgd" or "adam"
