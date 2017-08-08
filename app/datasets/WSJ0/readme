@@ -1,6 +1,14 @@
+- You need h5py and fuel
+
+    h5py is available via pip: `pip install h5py`
+
+    or conda: `conda install h5py`
+
+    fuel is available at https://github.com/mila-udem/fuel
+
 - Put orignal WSJ0 dataset under this directory, symlink is also OK. So the dataset is `app/datasets/WSJ0/WSJ0`
-  The dataset can either have orignal 15-CD structure, or have merge directories. Otherwise the directory structure
-  shouldn't be changed.
+  The dataset can have either the orignal 15-CD structure, or merged directories. However the directory structure
+  shouldn't be changed elsewhere.
   The orignal dataset has a paid license, so we can't put it here.
 
 - If you can't access Internet, then you should put `sph2pipe` program in this directory
