@@ -9,7 +9,7 @@ Tensorflow implementation of "Speaker-Independent Speech Separation with Deep At
 
 ### General
 
-numpy / scipy / nltk
+numpy / scipy
 
 tensorflow >= 1.2
 
