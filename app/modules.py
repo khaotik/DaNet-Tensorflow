@@ -130,7 +130,7 @@ class BiLstmEncoder(Encoder):
                 [s_out_fwd, s_out_bwd[rev_signal]], axis=-1)
             s_out = fn_dropout(s_out)
 
-            init_range = 0.1 / sqrt(600)
+            init_range = 1. / sqrt(600)
             s_out = ops.lyr_linear(
                 'output',
                 s_out,

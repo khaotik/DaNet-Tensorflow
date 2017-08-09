@@ -39,6 +39,9 @@ g_args = None
 g_model = None
 g_dataset = None
 
+if hparams.DEBUG:
+    _g_masks = None
+
 def _dict_add(dst, src):
     for k,v in src.items():
         if k not in dst:
@@ -99,7 +102,7 @@ def save_wavfile(filename, feature):
     scipy.io.wavfile.write(filename, hparams.SMPRATE, data)
 
 
-def do_separation(s_mixed_signals_log, s_attractors, s_embed_flat):
+def do_separation(s_mixed_signals_pwr, s_attractors, s_embed_flat):
     '''
     Given mixture log-power spectra, embedding, and attractors,
       find masks and return log-power spectra of separated signals.
@@ -120,11 +123,16 @@ def do_separation(s_mixed_signals_log, s_attractors, s_embed_flat):
             hparams.BATCH_SIZE,
             -1, hparams.FEATURE_SIZE,
             hparams.MAX_N_SIGNAL])
-    s_masks = tf.nn.sigmoid(s_logits)
-    s_separated_signals_log = tf.expand_dims(
-        s_mixed_signals_log, -1) * s_masks
+    s_masks = tf.nn.sigmoid(s_logits * 0.1)
+    s_separated_signals_pwr = tf.expand_dims(
+        s_mixed_signals_pwr, -1) * s_masks
+
+    if hparams.DEBUG:
+        global _g_masks
+        _g_masks = s_masks
+
     return tf.transpose(
-        s_separated_signals_log, [0, 3, 1, 2])
+        s_separated_signals_pwr, [0, 3, 1, 2])
 
 
 class Model(object):
@@ -183,13 +191,13 @@ class Model(object):
             self.s_states_di[v_cell.name] = v_cell
             self.s_states_di[v_hid.name] = v_hid
 
-            init_range = 1. / sqrt(hdim)
+            # init_range = 1. / sqrt(hdim)
             op_lstm = lambda _h, _x: ops.lyr_lstm_flat(
                 name='LSTM',
                 s_x=_x, v_cell=_h[0], v_hid=_h[1],
-                axis=axis-1, op_linear=op_linear,
-                w_init=tf.random_uniform_initializer(
-                    -init_range, init_range, dtype=hparams.FLOATX))
+                axis=axis-1, op_linear=op_linear)
+                # w_init=tf.random_uniform_initializer(
+                    # -init_range, init_range, dtype=hparams.FLOATX))
             s_cell_seq, s_hid_seq = tf.scan(
                 op_lstm, s_x, initializer=(v_cell, v_hid))
         return s_hid_seq if t_axis == 0 else tf.transpose(s_hid_seq, perm)
@@ -288,7 +296,8 @@ class Model(object):
             s_mixed_signals = tf.reduce_sum(
                 s_src_signals, axis=1)
 
-            s_src_signals_log = tf.log1p(tf.abs(s_src_signals))
+            s_src_signals_pwr = tf.abs(s_src_signals)
+            s_src_signals_log = tf.log1p(s_src_signals_pwr)
             s_mixed_signals_phase = tf.atan2(
                 tf.imag(s_mixed_signals), tf.real(s_mixed_signals))
             s_mixed_signals_power = tf.abs(s_mixed_signals)
@@ -327,18 +336,21 @@ class Model(object):
                 s_valid_attractors = hparams.get_estimator(
                     hparams.INFER_ESTIMATOR_METHOD)('infer_estimator')(s_embed)
 
-            s_separated_signals_log = do_separation(
-                s_mixed_signals_log, s_attractors, s_embed_flat)
+            s_separated_signals_pwr = do_separation(
+                s_mixed_signals_power, s_attractors, s_embed_flat)
+
+            if hparams.DEBUG:
+                _s_masks = _g_masks
 
             if using_same_method:
-                s_separated_signals_log_valid = s_separated_signals_log
+                s_separated_signals_pwr_valid = s_separated_signals_pwr
             else:
-                s_separated_signals_log_valid = do_separation(
-                    s_mixed_signals_log, s_valid_attractors, s_embed_flat)
+                s_separated_signals_pwr_valid = do_separation(
+                    s_mixed_signals_power, s_valid_attractors, s_embed_flat)
 
             # loss and SNR for training
             s_train_loss, v_perms, s_perm_sets = ops.pit_mse_loss(
-                s_src_signals_log, s_separated_signals_log)
+                s_src_signals_pwr, s_separated_signals_pwr)
             s_perm_idxs = tf.stack([
                 tf.tile(
                     tf.expand_dims(tf.range(hparams.BATCH_SIZE), 1),
@@ -346,16 +358,15 @@ class Model(object):
                 tf.gather(v_perms, s_perm_sets)], axis=2)
             s_perm_idxs = tf.reshape(
                 s_perm_idxs, [hparams.BATCH_SIZE*hparams.MAX_N_SIGNAL, 2])
-            s_separated_signals_log =tf.gather_nd(
-                s_separated_signals_log, s_perm_idxs)
-            s_separated_signals_log = tf.reshape(
-                s_separated_signals_log, [
+            s_separated_signals_pwr = tf.gather_nd(
+                s_separated_signals_pwr, s_perm_idxs)
+            s_separated_signals_pwr = tf.reshape(
+                s_separated_signals_pwr, [
                     hparams.BATCH_SIZE,
                     hparams.MAX_N_SIGNAL,
                     -1, hparams.FEATURE_SIZE])
 
             s_mixed_signals_phase = tf.expand_dims(s_mixed_signals_phase, 1)
-            s_separated_signals_pwr = tf.expm1(s_separated_signals_log)
             s_separated_signals = tf.complex(
                 tf.cos(s_mixed_signals_phase) * s_separated_signals_pwr,
                 tf.sin(s_mixed_signals_phase) * s_separated_signals_pwr)
@@ -364,7 +375,7 @@ class Model(object):
 
             # ^ for validation / inference
             s_valid_loss, v_perms, s_perm_sets = ops.pit_mse_loss(
-                s_src_signals_log, s_separated_signals_log_valid)
+                s_src_signals_pwr, s_separated_signals_pwr_valid)
             s_perm_idxs = tf.stack([
                 tf.tile(
                     tf.expand_dims(tf.range(hparams.BATCH_SIZE), 1),
@@ -373,24 +384,20 @@ class Model(object):
                 axis=2)
             s_perm_idxs = tf.reshape(
                 s_perm_idxs, [hparams.BATCH_SIZE*hparams.MAX_N_SIGNAL, 2])
-            s_separated_signals_log_valid_pit = tf.gather_nd(
-                s_separated_signals_log_valid, s_perm_idxs)
-            s_separated_signals_log_valid_pit = tf.reshape(
-                s_separated_signals_log_valid_pit, [
+            s_separated_signals_pwr_valid_pit = tf.gather_nd(
+                s_separated_signals_pwr_valid, s_perm_idxs)
+            s_separated_signals_pwr_valid_pit = tf.reshape(
+                s_separated_signals_pwr_valid_pit, [
                     hparams.BATCH_SIZE,
                     hparams.MAX_N_SIGNAL,
                     -1, hparams.FEATURE_SIZE])
-            s_separated_signals_pwr_valid = tf.expm1(
-                s_separated_signals_log_valid_pit)
-            s_separated_signals_pwr_infer = tf.expm1(
-                s_separated_signals_log_valid)
 
             s_separated_signals_valid = tf.complex(
+                tf.cos(s_mixed_signals_phase) * s_separated_signals_pwr_valid_pit,
+                tf.sin(s_mixed_signals_phase) * s_separated_signals_pwr_valid_pit)
+            s_separated_signals_infer = tf.complex(
                 tf.cos(s_mixed_signals_phase) * s_separated_signals_pwr_valid,
                 tf.sin(s_mixed_signals_phase) * s_separated_signals_pwr_valid)
-            s_separated_signals_infer = tf.complex(
-                tf.cos(s_mixed_signals_phase) * s_separated_signals_pwr_infer,
-                tf.sin(s_mixed_signals_phase) * s_separated_signals_pwr_infer)
             s_valid_snr = tf.reduce_mean(ops.batch_snr(
                 s_src_signals, s_separated_signals_valid, is_complex=True))
 
@@ -447,7 +454,8 @@ class Model(object):
             self.debug_fetches = dict(
                 embed=s_embed,
                 attrs=s_attractors,
-                asets=estimator.s_attractor_sets)
+                asets=estimator.s_attractor_sets,
+                masks=_s_masks)
 
         self.saver = tf.train.Saver(var_list=v_params_li)
 
@@ -685,6 +693,7 @@ def main():
             dict(zip(
                 g_model.debug_feed_keys,
                 data_pt + (hparams.DROPOUT_KEEP_PROB,))))
+        plt.imshow(result['masks'][0,:,:,0]); plt.show()
         import pdb; pdb.set_trace()
     else:
         raise ValueError(

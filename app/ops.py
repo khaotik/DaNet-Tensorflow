@@ -4,6 +4,7 @@ collection of commonly used Ops and layers
 from math import sqrt
 import itertools
 
+import numpy as np
 import tensorflow as tf
 
 import app.hparams as hparams
@@ -110,6 +111,11 @@ def lyr_lstm_flat(
     hdim = cell_shp[axis]
     assert hdim == hid_shp[axis]
 
+    if b_init is None:
+        b_init_value = np.ones([hdim*4], dtype=hparams.FLOATX)
+        b_init_value[:hdim] = 0.
+        b_init = tf.constant_initializer(b_init_value, dtype=hparams.FLOATX)
+
     with tf.variable_scope(name):
         s_inp = tf.concat([s_x, v_hid], axis=axis)
         s_act = op_linear(
@@ -146,6 +152,9 @@ def lyr_gru_flat(
     assert idim is not None
     cell_shp = v_cell.get_shape().as_list()
     hdim = cell_shp[axis]
+
+    if b_init is None:
+        b_init = tf.constant_initializer(1., dtype=hparams.FLOATX)
 
     with tf.variable_scope(name):
         s_inp = tf.concat([s_x, v_cell], axis=axis)

@@ -15,13 +15,13 @@ MAX_N_SIGNAL = 2
 FFT_SIZE = 256  # segmenet size in STFT
 FFT_STRIDE = 64  # segmenet stride in STFT
 FFT_WND = np.sqrt(scipy.signal.hann(FFT_SIZE)).astype(FLOATX)
-MAX_TRAIN_LEN = 100  # limit signal length during training, can be None
+MAX_TRAIN_LEN = 50  # limit signal length during training, can be None
 SMPRATE = 8000  # sampling rate
 EMBED_SIZE = 20  # embedding size
 
 RELU_LEAKAGE = 0.3  # how leaky relu is, 0 -> relu, 1 -> linear
 EPS = 1e-7  # to prevent sqrt() log() etc cause NaN
-DROPOUT_KEEP_PROB = 0.8  # probability to keep in dropout layer
+DROPOUT_KEEP_PROB = 1.  # probability to keep in dropout layer
 assert isinstance(DROPOUT_KEEP_PROB, float)
 assert 0. < DROPOUT_KEEP_PROB <= 1.
 REG_SCALE = 1e-2  # regularization loss scale
