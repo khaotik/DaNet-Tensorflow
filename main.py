@@ -183,7 +183,7 @@ class Model(object):
             self.s_states_di[v_cell.name] = v_cell
             self.s_states_di[v_hid.name] = v_hid
 
-            init_range = 0.1 / sqrt(hdim)
+            init_range = 1. / sqrt(hdim)
             op_lstm = lambda _h, _x: ops.lyr_lstm_flat(
                 name='LSTM',
                 s_x=_x, v_cell=_h[0], v_hid=_h[1],
@@ -313,8 +313,9 @@ class Model(object):
                     s_attractors = tf.map_fn(
                         fn_segmean, (s_embed_flat, s_indices), hparams.FLOATX)
             elif hparams.TRAIN_ESTIMATOR_METHOD == 'anchor':
-                s_attractors = hparams.get_estimator(
-                    'anchor')(self, 'train_estimator')(s_embed)
+                estimator = hparams.get_estimator(
+                    'anchor')(self, 'train_estimator')
+                s_attractors = estimator(s_embed)
 
             using_same_method = (
                 hparams.INFER_ESTIMATOR_METHOD ==
@@ -440,6 +441,13 @@ class Model(object):
 
         self.infer_feed_keys = [s_mixed_signals, s_dropout_keep]
         self.infer_fetches = dict(signals=s_separated_signals_infer)
+
+        if hparams.DEBUG:
+            self.debug_feed_keys = [s_mixed_signals, s_dropout_keep]
+            self.debug_fetches = dict(
+                embed=s_embed,
+                attrs=s_attractors,
+                asets=estimator.s_attractor_sets)
 
         self.saver = tf.train.Saver(var_list=v_params_li)
 
@@ -599,11 +607,13 @@ def main():
     stdout.write('Building model ... ')
     stdout.flush()
     g_model = Model(name=g_args.name)
-    if g_args.mode == 'demo':
+    if g_args.mode in ['demo', 'debug']:
         hparams.BATCH_SIZE = 1
         print(
             '\n  Warning: setting hparams.BATCH_SIZE to 1 for "demo" mode'
             '\n... ', end='')
+        if g_args.mode == 'debug':
+            hparams.DEBUG = True
     g_model.build()
     stdout.write('done\n')
 
@@ -662,7 +672,20 @@ def main():
         plt.subplot(1, len(signals)+1, len(signals)+1)
         plt.imshow(np.log1p(np.abs(mixture)))
         plt.show()
-
+    elif g_args.mode == 'debug':
+        for mixture in g_dataset.epoch('test', hparams.MAX_N_SIGNAL):
+            break
+        max_len = max(map(len, mixture[0]))
+        mixture_li = [np.pad(x, [(0, max_len - len(x)), (0,0)], mode='constant') for x in mixture[0]]
+        mixture = np.stack(mixture_li)
+        mixture = np.sum(mixture, axis=0)
+        data_pt = (np.expand_dims(mixture, 0),)
+        result = g_sess.run(
+            g_model.debug_fetches,
+            dict(zip(
+                g_model.debug_feed_keys,
+                data_pt + (hparams.DROPOUT_KEEP_PROB,))))
+        import pdb; pdb.set_trace()
     else:
         raise ValueError(
             'Unknown mode "%s"' % g_args.mode)

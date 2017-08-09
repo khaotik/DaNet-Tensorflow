@@ -1,4 +1,5 @@
 import copy
+from math import sqrt
 from functools import partial
 
 import tensorflow as tf
@@ -129,11 +130,13 @@ class BiLstmEncoder(Encoder):
                 [s_out_fwd, s_out_bwd[rev_signal]], axis=-1)
             s_out = fn_dropout(s_out)
 
+            init_range = 0.1 / sqrt(600)
             s_out = ops.lyr_linear(
                 'output',
                 s_out,
                 hparams.FEATURE_SIZE * hparams.EMBED_SIZE,
-                bias=False)
+                w_init=tf.random_uniform_initializer(
+                    -init_range, init_range, dtype=hparams.FLOATX))
             s_out = tf.reshape(
                 s_out,
                 [hparams.BATCH_SIZE, -1, hparams.FEATURE_SIZE, hparams.EMBED_SIZE])
@@ -152,7 +155,10 @@ class AnchoredEstimator(Estimator):
     def __call__(self, s_embed):
         with tf.variable_scope(self.name):
             v_anchors = tf.get_variable(
-                'anchors', [hparams.NUM_ANCHOR, hparams.EMBED_SIZE])
+                'anchors', [hparams.NUM_ANCHOR, hparams.EMBED_SIZE],
+                initializer=tf.random_normal_initializer(
+                    stddev=1.))
+
             # all combinations of anchors
             s_anchor_sets = ops.combinations(
                 v_anchors, hparams.MAX_N_SIGNAL)
@@ -180,8 +186,12 @@ class AnchoredEstimator(Estimator):
             # equation (9)
             s_subset_choice = tf.argmin(s_in_set_similarities, axis=1)
             s_subset_choice = tf.transpose(tf.stack([
-                s_subset_choice,
-                tf.range(hparams.BATCH_SIZE, dtype=tf.int64)]))
+                tf.range(hparams.BATCH_SIZE, dtype=tf.int64),
+                s_subset_choice]))
             s_attractors = tf.gather_nd(s_attractor_sets, s_subset_choice)
+
+        if hparams.DEBUG:
+            self.s_attractor_sets = s_attractor_sets
+
         return s_attractors
 

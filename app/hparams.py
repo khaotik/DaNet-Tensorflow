@@ -10,7 +10,7 @@ import scipy.signal
 FLOATX = 'float32'  # default type for float
 INTX = 'int32'  # defualt type for int
 
-BATCH_SIZE = 8  # minibatch size
+BATCH_SIZE = 12  # minibatch size
 MAX_N_SIGNAL = 2
 FFT_SIZE = 256  # segmenet size in STFT
 FFT_STRIDE = 64  # segmenet stride in STFT
@@ -51,6 +51,7 @@ SUMMARY_DIR = './logs'
 # normally you don't need touch anything below if you just want to tweak
 # some hyperparameters
 
+DEBUG = False
 COMPLEXX = dict(float32='complex64', float64='complex128')[FLOATX]
 FEATURE_SIZE = 1 + FFT_SIZE // 2
 
