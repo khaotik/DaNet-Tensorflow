@@ -50,7 +50,8 @@ class TimitDataset(Dataset):
                 [np.pad(s, ((0, sig_len-len(s)), (0, 0)), mode='constant')
                     for s in signals_batch_li])
             text_indices = np.empty(
-                (reduce(int.__add__, map(len, texts_batch_li)), 2), dtype=hparams.INTX)
+                (reduce(int.__add__, map(len, texts_batch_li)), 2),
+                dtype=hparams.INTX)
             text_values = np.concatenate(texts_batch_li)
 
             idx = 0
@@ -61,9 +62,6 @@ class TimitDataset(Dataset):
                 idx += l
 
             text_shape = (batch_size_, txt_len)
-            signals_batch = np.reshape(
-                signals_batch,
-                (batch_size, hparams.MAX_N_SIGNAL) + signals_batch.shape[-2:])
             yield signals_batch, (text_indices, text_values, text_shape)
 
         if tot_size % batch_size_:
@@ -85,10 +83,8 @@ class TimitDataset(Dataset):
                 text_indices[idx:idx+l, 1] = np.arange(l)
                 idx += l
 
-            signals_batch = np.reshape(
-                signals_batch,
-                (batch_size, hparams.MAX_N_SIGNAL) + signals_batch.shape[-2:])
-            yield signals_batch, (text_indices, text_values, (batch_size_, txt_len))
+            text_shape = (batch_size_, txt_len)
+            yield signals_batch, (text_indices, text_values, text_shape)
 
     def install_and_load(self):
         # TODO automatically install if fails to find anything

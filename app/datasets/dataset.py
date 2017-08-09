@@ -19,7 +19,7 @@ class Dataset(object):
 
         Yields:
             (signals,)
-            signals is a rank-4 float32 array: [batch_size, n, time, features]
+            signals is a rank-3 float32 array: [batch_size, time, features]
         '''
         raise NotImplementedError()
 
@@ -55,7 +55,6 @@ class WhiteNoiseData(object):
         for _ in range(10):
             signal = np.random.rand(
                 batch_size,
-                hparams.MAX_N_SIGNAL,
                 128, hparams.FEATURE_SIZE).astype(hparams.FLOATX)
             yield (signal,)
 

@@ -16,6 +16,7 @@ from itertools import permutations
 import os
 import copy
 
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy.signal
 import scipy.io.wavfile
@@ -576,6 +577,8 @@ def main():
         help='input WAV file for "demo" mode')
     parser.add_argument('-ds', '--dataset',
         help='choose dataset to use, overrides hparams.DATASET_TYPE')
+    parser.add_argument('--plot',
+        action='store_true', help='plot spectrogram from "demo" mode')
     g_args = parser.parse_args()
 
     # TODO manage device
@@ -651,6 +654,14 @@ def main():
         for i, s in enumerate(signals):
             save_wavfile(
                 filename + ('_separated_%d' % (i+1)) + fileext, s)
+
+        # visualize result
+        for i, s in enumerate(signals):
+            plt.subplot(1, len(signals)+1, i+1)
+            plt.imshow(np.log1p(np.abs(s)))
+        plt.subplot(1, len(signals)+1, len(signals)+1)
+        plt.imshow(np.log1p(np.abs(mixture)))
+        plt.show()
 
     else:
         raise ValueError(
