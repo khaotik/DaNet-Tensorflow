@@ -593,12 +593,15 @@ def main():
         help='input WAV file for "demo" mode')
     parser.add_argument('-ds', '--dataset',
         help='choose dataset to use, overrides hparams.DATASET_TYPE')
-    parser.add_argument('--plot',
-        action='store_true', help='plot spectrogram from "demo" mode')
+    parser.add_argument('-lr', '--learn-rate',
+        help='Learn rate, overrides hparams.LR')
     g_args = parser.parse_args()
 
     # TODO manage device
 
+    if g_args.learn_rate is not None:
+        hparams.LR = float(g_args.learn_rate)
+        assert hparams.LR >= 0.
     if g_args.dataset is not None:
         hparams.DATASET_TYPE = g_args.dataset
     stdout.write('Preparing dataset "%s" ... ' % hparams.DATASET_TYPE)
@@ -625,12 +628,12 @@ def main():
     g_model.build()
     stdout.write('done\n')
 
+    g_model.reset()
     if g_args.input_pfile is not None:
         stdout.write('Loading paramters from %s ... ' % g_args.input_pfile)
         g_model.load_params(g_args.input_pfile)
         stdout.write('done\n')
     stdout.flush()
-    g_model.reset()
 
     if g_args.mode == 'interactive':
         print('Now in interactive mode, you should run this with python -i')
