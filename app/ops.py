@@ -56,7 +56,7 @@ def lyr_linear(
             s_y = tf.tensordot(s_x, v_w, [[axis], [0]])
         if bias:
             if b_init is None:
-                b_init = tf.constant_initializer(1., dtype=hparams.FLOATX)
+                b_init = tf.constant_initializer(0., dtype=hparams.FLOATX)
             v_b = tf.get_variable(
                     'B', [odim],
                     initializer=b_init,
@@ -112,20 +112,22 @@ def lyr_lstm_flat(
     assert hdim == hid_shp[axis]
 
     if b_init is None:
-        b_init_value = np.ones([hdim*4], dtype=hparams.FLOATX)
-        b_init_value[:hdim] = 0.
+        b_init_value = np.zeros([hdim*4], dtype=hparams.FLOATX)
+        b_init_value[hdim*1:hdim*2] = 1.5  # input gate
+        b_init_value[hdim*2:hdim*3] = -1.  # forget gate
+        b_init_value[hdim*3:hdim*4] = 1.  # output gate
         b_init = tf.constant_initializer(b_init_value, dtype=hparams.FLOATX)
 
     with tf.variable_scope(name):
         s_inp = tf.concat([s_x, v_hid], axis=axis)
         s_act = op_linear(
-            'linear', s_inp, hdim*4, axis=axis, w_init=w_init, b_init=b_init)
+            'linear', s_inp, hdim*4,
+            axis=axis, w_init=w_init, b_init=b_init)
         s_cell_new, s_gates = tf.split(s_act, [hdim, hdim*3], axis=axis)
-        s_cell_new = tf.tanh(s_cell_new)
         s_igate, s_fgate, s_ogate = tf.split(
             tf.nn.sigmoid(s_gates), 3, axis=axis)
         s_cell_tp1 = s_igate*s_cell_new + s_fgate*v_cell
-        s_hid_tp1 = s_ogate * s_cell_tp1
+        s_hid_tp1 = s_ogate * tf.tanh(s_cell_tp1)
     return (s_cell_tp1, s_hid_tp1)
 
 

@@ -13,10 +13,11 @@ from sys import stdout
 from collections import OrderedDict
 from functools import reduce
 from itertools import permutations
+from colorsys import hsv_to_rgb
 import os
 import copy
 
-import matplotlib.pyplot as plt
+
 import numpy as np
 import scipy.signal
 import scipy.io.wavfile
@@ -105,7 +106,7 @@ def save_wavfile(filename, feature):
 def do_separation(s_mixed_signals_pwr, s_attractors, s_embed_flat):
     '''
     Given mixture log-power spectra, embedding, and attractors,
-      find masks and return log-power spectra of separated signals.
+      find masks and return magnitude spectra of separated signals.
 
     Args:
         s_mixed_signals_log: tensor of shape [batch_size, length, fft_size]
@@ -123,7 +124,7 @@ def do_separation(s_mixed_signals_pwr, s_attractors, s_embed_flat):
             hparams.BATCH_SIZE,
             -1, hparams.FEATURE_SIZE,
             hparams.MAX_N_SIGNAL])
-    s_masks = tf.nn.sigmoid(s_logits * 0.1)
+    s_masks = tf.nn.sigmoid(s_logits)
     s_separated_signals_pwr = tf.expand_dims(
         s_mixed_signals_pwr, -1) * s_masks
 
@@ -191,13 +192,13 @@ class Model(object):
             self.s_states_di[v_cell.name] = v_cell
             self.s_states_di[v_hid.name] = v_hid
 
-            # init_range = 1. / sqrt(hdim)
+            init_range = .75 / sqrt(hdim)
             op_lstm = lambda _h, _x: ops.lyr_lstm_flat(
                 name='LSTM',
                 s_x=_x, v_cell=_h[0], v_hid=_h[1],
-                axis=axis-1, op_linear=op_linear)
-                # w_init=tf.random_uniform_initializer(
-                    # -init_range, init_range, dtype=hparams.FLOATX))
+                axis=axis-1, op_linear=op_linear,
+                w_init=tf.random_uniform_initializer(
+                    -init_range, init_range, dtype=hparams.FLOATX))
             s_cell_seq, s_hid_seq = tf.scan(
                 op_lstm, s_x, initializer=(v_cell, v_hid))
         return s_hid_seq if t_axis == 0 else tf.transpose(s_hid_seq, perm)
@@ -325,6 +326,8 @@ class Model(object):
                 estimator = hparams.get_estimator(
                     'anchor')(self, 'train_estimator')
                 s_attractors = estimator(s_embed)
+            else:
+                raise NotImplementedError()
 
             using_same_method = (
                 hparams.INFER_ESTIMATOR_METHOD ==
@@ -334,7 +337,8 @@ class Model(object):
                 s_valid_attractors = s_attractors
             else:
                 s_valid_attractors = hparams.get_estimator(
-                    hparams.INFER_ESTIMATOR_METHOD)('infer_estimator')(s_embed)
+                    hparams.INFER_ESTIMATOR_METHOD
+                )(self, 'infer_estimator')(s_embed)
 
             s_separated_signals_pwr = do_separation(
                 s_mixed_signals_power, s_attractors, s_embed_flat)
@@ -424,7 +428,7 @@ class Model(object):
         if hparams.GRAD_CLIP_THRES is not None:
             r_apply_grads = [(tf.clip_by_value(
                 g, -hparams.GRAD_CLIP_THRES, hparams.GRAD_CLIP_THRES), v)
-                for g, v in r_apply_grads]
+                for g, v in r_apply_grads if g is not None]
         self.op_sgd_step = ozer.apply_gradients(r_apply_grads)
 
         self.op_init_params = tf.variables_initializer(v_params_li)
@@ -650,21 +654,33 @@ def main():
         g_model.test(dataset=g_dataset)
     elif g_args.mode == 'demo':
         # prepare data point
+        colors = np.asarray([
+            hsv_to_rgb(h, .95, .98)
+            for h in np.arange(
+                hparams.MAX_N_SIGNAL, dtype=np.float32
+            ) / hparams.MAX_N_SIGNAL])
         if g_args.input_file is None:
             filename = 'demo.wav'
-            for mixture in g_dataset.epoch('test', hparams.MAX_N_SIGNAL):
+            for src_signals in g_dataset.epoch('test', hparams.MAX_N_SIGNAL):
                 break
-            max_len = max(map(len, mixture[0]))
-            mixture_li = [np.pad(x, [(0, max_len - len(x)), (0,0)], mode='constant') for x in mixture[0]]
-            mixture = np.stack(mixture_li)
-            mixture = np.sum(mixture, axis=0)
-            save_wavfile(filename, mixture)
+            max_len = max(map(len, src_signals[0]))
+            src_signals_li = [np.pad(
+                x, [(0, max_len - len(x)), (0,0)],
+                mode='constant') for x in src_signals[0]]
+            src_signals = np.stack(src_signals_li)
+            raw_mixture = np.sum(src_signals, axis=0)
+            save_wavfile(filename, raw_mixture)
+            true_mixture = np.log1p(np.abs(src_signals))
+            true_mixture = - np.einsum(
+                'nwh,nc->whc', true_mixture, colors)
+            true_mixture /= np.min(true_mixture)
         else:
             filename = g_args.input_file
-            mixture = load_wavfile(g_args.input_file)
+            raw_mixture = load_wavfile(g_args.input_file)
+            true_mixture = np.log1p(np.abs(raw_mixture))
 
         # run with inference mode and save results
-        data_pt = (np.expand_dims(mixture, 0),)
+        data_pt = (np.expand_dims(raw_mixture, 0),)
         result = g_sess.run(
             g_model.infer_fetches,
             dict(zip(
@@ -677,13 +693,24 @@ def main():
                 filename + ('_separated_%d' % (i+1)) + fileext, s)
 
         # visualize result
-        for i, s in enumerate(signals):
-            plt.subplot(1, len(signals)+1, i+1)
-            plt.imshow(np.log1p(np.abs(s)))
-        plt.subplot(1, len(signals)+1, len(signals)+1)
-        plt.imshow(np.log1p(np.abs(mixture)))
-        plt.show()
+        if 'DISPLAY' in os.environ:
+            import matplotlib.pyplot as plt
+            signals = np.log1p(np.abs(signals))
+            signals = - np.einsum(
+                'nwh,nc->nwhc', signals, colors)
+            signals /= np.min(signals)
+            for i, s in enumerate(signals):
+                plt.subplot(1, len(signals)+2, i+1)
+                plt.imshow(np.log1p(np.abs(s)))
+            fake_mixture = 0.9 * np.sum(signals, axis=0)
+            # fake_mixture /= np.max(fake_mixture)
+            plt.subplot(1, len(signals)+2, len(signals)+1)
+            plt.imshow(fake_mixture)
+            plt.subplot(1, len(signals)+2, len(signals)+2)
+            plt.imshow(true_mixture)
+            plt.show()
     elif g_args.mode == 'debug':
+        import matplotlib.pyplot as plt
         for mixture in g_dataset.epoch('test', hparams.MAX_N_SIGNAL):
             break
         max_len = max(map(len, mixture[0]))
@@ -696,7 +723,11 @@ def main():
             dict(zip(
                 g_model.debug_feed_keys,
                 data_pt + (hparams.DROPOUT_KEEP_PROB,))))
-        plt.imshow(result['masks'][0,:,:,0]); plt.show()
+        plt.subplot(121)
+        plt.imshow(result['masks'][0,:,:,0])
+        plt.subplot(122)
+        plt.hist(result['masks'].flat)
+        plt.show()
         import pdb; pdb.set_trace()
     else:
         raise ValueError(

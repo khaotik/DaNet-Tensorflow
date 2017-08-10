@@ -97,7 +97,11 @@ class BiLstmEncoder(Encoder):
     def __call__(self, s_signals, s_dropout_keep=1.):
         rev_signal = (slice(None), slice(None, None, -1))
         fn_dropout = partial(tf.nn.dropout, keep_prob=s_dropout_keep)
+
         with tf.variable_scope(self.name):
+            s_signals = s_signals - tf.reduce_mean(
+                s_signals, axis=(1,2), keep_dims=True)
+
             s_mid0_fwd = self.model.lyr_lstm(
                 'lstm0_fwd', s_signals, 300, t_axis=-2)
             s_mid0_bwd = self.model.lyr_lstm(
@@ -113,6 +117,9 @@ class BiLstmEncoder(Encoder):
             s_mid1 = tf.concat(
                 [s_mid1_fwd, s_mid1_bwd[rev_signal]], axis=-1)
             s_mid1 = fn_dropout(s_mid1)
+
+            s_mid1 = s_mid1 - tf.reduce_mean(
+                s_mid1, axis=(1,2), keep_dims=True)
 
             s_mid2_fwd = self.model.lyr_lstm(
                 'lstm2_fwd', s_mid1, 300, t_axis=-2)
@@ -130,13 +137,19 @@ class BiLstmEncoder(Encoder):
                 [s_out_fwd, s_out_bwd[rev_signal]], axis=-1)
             s_out = fn_dropout(s_out)
 
-            init_range = 0.1 / sqrt(600)
+            s_out = s_out - tf.reduce_mean(
+                s_out, axis=(1,2), keep_dims=True)
+
+            # init_range = 2. / sqrt(300)
+            init_range = 1.85
             s_out = ops.lyr_linear(
                 'output',
                 s_out,
                 hparams.FEATURE_SIZE * hparams.EMBED_SIZE,
                 w_init=tf.random_uniform_initializer(
-                    -init_range, init_range, dtype=hparams.FLOATX))
+                    -init_range, init_range, dtype=hparams.FLOATX),
+                bias=None
+                )
             s_out = tf.reshape(
                 s_out,
                 [hparams.BATCH_SIZE, -1, hparams.FEATURE_SIZE, hparams.EMBED_SIZE])

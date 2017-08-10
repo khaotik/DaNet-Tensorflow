@@ -34,7 +34,7 @@ class TimitDataset(Dataset):
                 (subset, list(self.subset.keys())))
         signals_li, phonemes_li, texts_li = self.subset[subset]
         tot_size = len(signals_li)
-        batch_size_ = batch_size * hparams.MAX_N_SIGNAL
+        batch_size_ = batch_size
         assert tot_size == len(phonemes_li)
         assert tot_size == len(texts_li)
         if shuffle:

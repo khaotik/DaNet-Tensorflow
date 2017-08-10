@@ -13,6 +13,8 @@ numpy / scipy
 
 tensorflow >= 1.2
 
+matplotlib (optional, for visualization)
+
 ### TIMIT dataset
 
 You need a utility program `sndfile-convert`
@@ -72,17 +74,21 @@ Under the root dirctory of this repo:
 
 `python main.py`
 
+
 - train a model for 100 epoch and save it
 
 `python main.py -ne=100 -o='params.cpkt'`
+
 
 - continue from last saved model, train 100 more epoch, save back
 
 `python main.py -ne=100 -i='params.cpkt' -o='params.cpkt'`
 
+
 - test the trained model on test set
 
 `python main.py -i='params.cpkt' -m=test`
+
 
 - draw a sample from test set, then separate it:
 
@@ -92,6 +98,7 @@ $ ls *.wav
 demo.wav demo_separated_1.wav demo_separated_2.wav
 ```
 
+
 - separate a given WAV file:
 
 ```
@@ -100,9 +107,11 @@ $ ls *.wav
 file.wav file_separated_1.wav file_separated_2.wav
 ```
 
+
 - launch tensorboard and see graphs
 
 `tensorboard --logdir=./logs/`
+
 
 - for more CLI arguments, do
 
@@ -155,7 +164,7 @@ To change overall model architecture, modify `Model.build()` in `main.py`
 
 ## Limitations
 
-- Only the favorable `"anchored"` method for estimating attractor location during inference is implemented.
+- Only the favorable `"anchor"` method for estimating attractor location during inference is implemented.
   During training, it's also possible to use ground truth to give attractor location.
 
 - TIMIT dataset is small, so we use same set for test and validation.

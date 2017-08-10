@@ -3,27 +3,27 @@ hyperparameters
 '''
 import numpy as np
 import scipy.signal
+import tensorflow as tf
 
 # Hyperparameters are in CAPS
 # TODO use tf.app.flags to parse hyperparam from input
 #      or consider use json file to store hyperparams
+
 FLOATX = 'float32'  # default type for float
 INTX = 'int32'  # defualt type for int
 
-BATCH_SIZE = 12  # minibatch size
-MAX_N_SIGNAL = 2
+BATCH_SIZE = 32  # minibatch size
+MAX_N_SIGNAL = 2  # speech sources to separate
 FFT_SIZE = 256  # segmenet size in STFT
 FFT_STRIDE = 64  # segmenet stride in STFT
 FFT_WND = np.sqrt(scipy.signal.hann(FFT_SIZE)).astype(FLOATX)
-MAX_TRAIN_LEN = 50  # limit signal length during training, can be None
+MAX_TRAIN_LEN = 150  # limit signal length during training, can be None
 SMPRATE = 8000  # sampling rate
 EMBED_SIZE = 20  # embedding size
 
 RELU_LEAKAGE = 0.3  # how leaky relu is, 0 -> relu, 1 -> linear
 EPS = 1e-7  # to prevent sqrt() log() etc cause NaN
 DROPOUT_KEEP_PROB = 1.  # probability to keep in dropout layer
-assert isinstance(DROPOUT_KEEP_PROB, float)
-assert 0. < DROPOUT_KEEP_PROB <= 1.
 REG_SCALE = 1e-2  # regularization loss scale
 REG_TYPE = 'L2'  # regularization type, "L2", "L1" or "none"
 
@@ -34,7 +34,7 @@ GRAD_CLIP_THRES = 100.
 TRAIN_ESTIMATOR_METHOD = 'anchor'
 # "k-means", "fixed", "anchor"
 INFER_ESTIMATOR_METHOD = 'anchor'
-NUM_ANCHOR = 4
+NUM_ANCHOR = 6
 
 # ENCODER_TYPE can be "bilstm-orig"
 # check "modules.py" to see available sub-modules
@@ -55,13 +55,16 @@ DEBUG = False
 COMPLEXX = dict(float32='complex64', float64='complex128')[FLOATX]
 FEATURE_SIZE = 1 + FFT_SIZE // 2
 
-import tensorflow as tf
+assert isinstance(DROPOUT_KEEP_PROB, float)
+assert 0. < DROPOUT_KEEP_PROB <= 1.
+
 
 # registry
 encoder_registry = {}
 estimator_registry = {}
 ozer_registry = {}
 dataset_registry = {}
+
 
 # decorators & getters
 def register_encoder(name):

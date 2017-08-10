@@ -55,7 +55,6 @@ class Wsj0Dataset(Dataset):
             spectra = np.reshape(
                 spectra, [
                     hparams.BATCH_SIZE,
-                    hparams.MAX_N_SIGNAL,
                     max_len, hparams.FEATURE_SIZE])
             yield (spectra,)
         dataset.close(handle)
