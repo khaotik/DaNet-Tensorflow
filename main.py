@@ -73,7 +73,7 @@ def load_wavfile(filename):
     '''
     if filename is None:
         # TODO in this case, draw a sample from dataset instead of raise ?
-        raise FileNotFoundError(
+        raise IOError(
                 'WAV file not specified, '
                 'please specify via --input-file argument.')
     smprate, data = scipy.io.wavfile.read(filename)

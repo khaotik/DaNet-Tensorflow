@@ -77,23 +77,23 @@ Under the root dirctory of this repo:
 
 - train a model for 100 epoch and save it
 
-`python main.py -ne=100 -o='params.cpkt'`
+`python main.py -ne=100 -o='params.ckpt'`
 
 
 - continue from last saved model, train 100 more epoch, save back
 
-`python main.py -ne=100 -i='params.cpkt' -o='params.cpkt'`
+`python main.py -ne=100 -i='params.ckpt' -o='params.ckpt'`
 
 
 - test the trained model on test set
 
-`python main.py -i='params.cpkt' -m=test`
+`python main.py -i='params.ckpt' -m=test`
 
 
 - draw a sample from test set, then separate it:
 
 ```
-$ python main.py -i='params.cpkt' -m=demo
+$ python main.py -i='params.ckpt' -m=demo
 $ ls *.wav
 demo.wav demo_separated_1.wav demo_separated_2.wav
 ```

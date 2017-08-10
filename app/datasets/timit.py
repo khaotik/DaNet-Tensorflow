@@ -96,7 +96,7 @@ class TimitDataset(Dataset):
         for subset in ['train', 'test']:
             filepath = path % subset
             if not os.path.exists(filepath):
-                raise FileNotFoundError(
+                raise IOError(
                     FILE_NOT_FOUND_MSG % filepath)
 
             with open(filepath, 'rb') as f:
