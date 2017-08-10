@@ -52,9 +52,5 @@ class Wsj0Dataset(Dataset):
                 x, [(0, max_len - len(x)), (0, 0)],
                 mode='constant') for x in data_pt[0]]
             spectra = np.stack(spectra_li)
-            spectra = np.reshape(
-                spectra, [
-                    hparams.BATCH_SIZE,
-                    max_len, hparams.FEATURE_SIZE])
             yield (spectra,)
         dataset.close(handle)
