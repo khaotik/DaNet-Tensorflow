@@ -148,7 +148,9 @@ class Model(object):
 
     def lyr_lstm(
             self, name, s_x, hdim,
-            axis=-1, t_axis=0, op_linear=ops.lyr_linear):
+            axis=-1, t_axis=0,
+            op_linear=ops.lyr_linear,
+            w_init=None, b_init=None):
         '''
         Args:
             name: string
@@ -192,13 +194,11 @@ class Model(object):
             self.s_states_di[v_cell.name] = v_cell
             self.s_states_di[v_hid.name] = v_hid
 
-            init_range = .75 / sqrt(hdim)
             op_lstm = lambda _h, _x: ops.lyr_lstm_flat(
                 name='LSTM',
                 s_x=_x, v_cell=_h[0], v_hid=_h[1],
                 axis=axis-1, op_linear=op_linear,
-                w_init=tf.random_uniform_initializer(
-                    -init_range, init_range, dtype=hparams.FLOATX))
+                w_init=w_init, b_init=b_init)
             s_cell_seq, s_hid_seq = tf.scan(
                 op_lstm, s_x, initializer=(v_cell, v_hid))
         return s_hid_seq if t_axis == 0 else tf.transpose(s_hid_seq, perm)
@@ -693,22 +693,25 @@ def main():
                 filename + ('_separated_%d' % (i+1)) + fileext, s)
 
         # visualize result
-        if 'DISPLAY' in os.environ:
-            import matplotlib.pyplot as plt
-            signals = np.log1p(np.abs(signals))
-            signals = - np.einsum(
-                'nwh,nc->nwhc', signals, colors)
-            signals /= np.min(signals)
-            for i, s in enumerate(signals):
-                plt.subplot(1, len(signals)+2, i+1)
-                plt.imshow(np.log1p(np.abs(s)))
-            fake_mixture = 0.9 * np.sum(signals, axis=0)
-            # fake_mixture /= np.max(fake_mixture)
-            plt.subplot(1, len(signals)+2, len(signals)+1)
-            plt.imshow(fake_mixture)
-            plt.subplot(1, len(signals)+2, len(signals)+2)
-            plt.imshow(true_mixture)
-            plt.show()
+        if 'DISPLAY' not in os.environ:
+            print('Warning: no display found, not generating plot')
+            return
+
+        import matplotlib.pyplot as plt
+        signals = np.log1p(np.abs(signals))
+        signals = - np.einsum(
+            'nwh,nc->nwhc', signals, colors)
+        signals /= np.min(signals)
+        for i, s in enumerate(signals):
+            plt.subplot(1, len(signals)+2, i+1)
+            plt.imshow(np.log1p(np.abs(s)))
+        fake_mixture = 0.9 * np.sum(signals, axis=0)
+        # fake_mixture /= np.max(fake_mixture)
+        plt.subplot(1, len(signals)+2, len(signals)+1)
+        plt.imshow(fake_mixture)
+        plt.subplot(1, len(signals)+2, len(signals)+2)
+        plt.imshow(true_mixture)
+        plt.show()
     elif g_args.mode == 'debug':
         import matplotlib.pyplot as plt
         for mixture in g_dataset.epoch('test', hparams.MAX_N_SIGNAL):
@@ -723,11 +726,7 @@ def main():
             dict(zip(
                 g_model.debug_feed_keys,
                 data_pt + (hparams.DROPOUT_KEEP_PROB,))))
-        plt.subplot(121)
-        plt.imshow(result['masks'][0,:,:,0])
-        plt.subplot(122)
-        plt.hist(result['masks'].flat)
-        plt.show()
+        scipy.io.savemat('debug/result.mat', result)
         import pdb; pdb.set_trace()
     else:
         raise ValueError(

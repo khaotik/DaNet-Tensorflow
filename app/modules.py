@@ -2,6 +2,7 @@ import copy
 from math import sqrt
 from functools import partial
 
+import numpy as np
 import tensorflow as tf
 
 import app.hparams as hparams
@@ -95,47 +96,60 @@ class BiLstmEncoder(Encoder):
         self.model = model
 
     def __call__(self, s_signals, s_dropout_keep=1.):
-        rev_signal = (slice(None), slice(None, None, -1))
-        fn_dropout = partial(tf.nn.dropout, keep_prob=s_dropout_keep)
+        def bilstm(
+                name_, model_,
+                s_input_, hdim_,
+                t_axis_, axis_,
+                w_init_, b_init_,
+                s_dropout_keep_):
+            ndim = len(s_input_.get_shape().as_list())
+            t_axis_ %= ndim
+            rev_signal = (slice(None),)*t_axis_ + (slice(None, None, -1),)
+            s_output_fwd = model_.lyr_lstm(
+                name_+'_fwd', s_input_, hdim_,
+                t_axis=t_axis_, w_init=w_init_, b_init=b_init_)
+            s_output_bwd = model_.lyr_lstm(
+                name_+'_bwd', s_input_[rev_signal], hdim_,
+                t_axis=t_axis_, w_init=w_init_, b_init=b_init_)
+            s_output = tf.concat(
+                [s_output_fwd, s_output_bwd[rev_signal]], axis=axis_)
+            return tf.nn.dropout(s_output, keep_prob=s_dropout_keep_)
 
         with tf.variable_scope(self.name):
             s_signals = s_signals - tf.reduce_mean(
                 s_signals, axis=(1,2), keep_dims=True)
 
-            s_mid0_fwd = self.model.lyr_lstm(
-                'lstm0_fwd', s_signals, 300, t_axis=-2)
-            s_mid0_bwd = self.model.lyr_lstm(
-                'lstm0_bwd', s_signals[rev_signal], 300, t_axis=-2)
-            s_mid0 = tf.concat(
-                [s_mid0_fwd, s_mid0_bwd[rev_signal]], axis=-1)
-            s_mid0 = fn_dropout(s_mid0)
+            hdim = 300
+            init_range = .75 / sqrt(hdim)
+            w_initer = tf.random_uniform_initializer(
+                -init_range, init_range, dtype=hparams.FLOATX)
 
-            s_mid1_fwd = self.model.lyr_lstm(
-                'lstm1_fwd', s_mid0, 300, t_axis=-2)
-            s_mid1_bwd = self.model.lyr_lstm(
-                'lstm1_bwd', s_mid0[rev_signal], 300, t_axis=-2)
-            s_mid1 = tf.concat(
-                [s_mid1_fwd, s_mid1_bwd[rev_signal]], axis=-1)
-            s_mid1 = fn_dropout(s_mid1)
+            b_init_value = np.zeros([hdim*4], dtype=hparams.FLOATX)
+            b_init_value[hdim*1:hdim*2] = 1.5  # input gate
+            b_init_value[hdim*2:hdim*3] = -1.  # forget gate
+            b_init_value[hdim*3:hdim*4] = 1.  # output gate
+            b_initer = tf.constant_initializer(b_init_value, dtype=hparams.FLOATX)
 
-            s_mid1 = s_mid1 - tf.reduce_mean(
-                s_mid1, axis=(1,2), keep_dims=True)
-
-            s_mid2_fwd = self.model.lyr_lstm(
-                'lstm2_fwd', s_mid1, 300, t_axis=-2)
-            s_mid2_bwd = self.model.lyr_lstm(
-                'lstm2_bwd', s_mid1[rev_signal], 300, t_axis=-2)
-            s_mid2 = tf.concat(
-                [s_mid2_fwd, s_mid2_bwd[rev_signal]], axis=-1)
-            s_mid2 = fn_dropout(s_mid2)
-
-            s_out_fwd = self.model.lyr_lstm(
-                'lstm3_fwd', s_mid2, 300, t_axis=-2)
-            s_out_bwd = self.model.lyr_lstm(
-                'lstm3_bwd', s_mid2[rev_signal], 300, t_axis=-2)
-            s_out = tf.concat(
-                [s_out_fwd, s_out_bwd[rev_signal]], axis=-1)
-            s_out = fn_dropout(s_out)
+            s_mid0 = bilstm(
+                'lstm0', self.model,
+                s_signals, hdim,
+                -2, -1,
+                w_initer, b_initer, s_dropout_keep)
+            s_mid1 = bilstm(
+                'lstm1', self.model,
+                s_mid0, hdim,
+                -2, -1,
+                w_initer, b_initer, s_dropout_keep)
+            s_mid2 = bilstm(
+                'lstm2', self.model,
+                s_mid1, hdim,
+                -2, -1,
+                w_initer, b_initer, s_dropout_keep)
+            s_out = bilstm(
+                'lstm3', self.model,
+                s_mid2, hdim,
+                -2, -1,
+                w_initer, b_initer, s_dropout_keep)
 
             s_out = s_out - tf.reduce_mean(
                 s_out, axis=(1,2), keep_dims=True)
@@ -148,11 +162,11 @@ class BiLstmEncoder(Encoder):
                 hparams.FEATURE_SIZE * hparams.EMBED_SIZE,
                 w_init=tf.random_uniform_initializer(
                     -init_range, init_range, dtype=hparams.FLOATX),
-                bias=None
-                )
+                bias=None)
             s_out = tf.reshape(
-                s_out,
-                [hparams.BATCH_SIZE, -1, hparams.FEATURE_SIZE, hparams.EMBED_SIZE])
+                s_out, [
+                    hparams.BATCH_SIZE, -1,
+                    hparams.FEATURE_SIZE, hparams.EMBED_SIZE])
         return s_out
 
 

@@ -111,13 +111,6 @@ def lyr_lstm_flat(
     hdim = cell_shp[axis]
     assert hdim == hid_shp[axis]
 
-    if b_init is None:
-        b_init_value = np.zeros([hdim*4], dtype=hparams.FLOATX)
-        b_init_value[hdim*1:hdim*2] = 1.5  # input gate
-        b_init_value[hdim*2:hdim*3] = -1.  # forget gate
-        b_init_value[hdim*3:hdim*4] = 1.  # output gate
-        b_init = tf.constant_initializer(b_init_value, dtype=hparams.FLOATX)
-
     with tf.variable_scope(name):
         s_inp = tf.concat([s_x, v_hid], axis=axis)
         s_act = op_linear(
