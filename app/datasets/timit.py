@@ -38,9 +38,9 @@ class TimitDataset(Dataset):
         assert tot_size == len(phonemes_li)
         assert tot_size == len(texts_li)
         if shuffle:
-            idx_li = np.arange(tot_size)
-        else:
             idx_li = np.random.permutation(tot_size)
+        else:
+            idx_li = np.arange(tot_size)
         for i in range(0, tot_size-batch_size_, batch_size_):
             signals_batch_li = [signals_li[j] for j in idx_li[i:i+batch_size_]]
             texts_batch_li = [texts_li[j] for j in idx_li[i:i+batch_size_]]

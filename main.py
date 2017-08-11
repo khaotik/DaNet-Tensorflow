@@ -458,8 +458,9 @@ class Model(object):
             self.debug_fetches = dict(
                 embed=s_embed,
                 attrs=s_attractors,
-                asets=estimator.s_attractor_sets,
-                masks=_s_masks)
+                masks=_s_masks,
+                output=s_separated_signals_infer)
+            self.debug_fetches.update(estimator.debug_fetches)
 
         self.saver = tf.train.Saver(var_list=v_params_li)
 
@@ -714,20 +715,23 @@ def main():
         plt.show()
     elif g_args.mode == 'debug':
         import matplotlib.pyplot as plt
-        for mixture in g_dataset.epoch('test', hparams.MAX_N_SIGNAL):
+        for input_ in g_dataset.epoch(
+            'test', hparams.MAX_N_SIGNAL, shuffle=True):
             break
-        max_len = max(map(len, mixture[0]))
-        mixture_li = [np.pad(x, [(0, max_len - len(x)), (0,0)], mode='constant') for x in mixture[0]]
-        mixture = np.stack(mixture_li)
-        mixture = np.sum(mixture, axis=0)
-        data_pt = (np.expand_dims(mixture, 0),)
-        result = g_sess.run(
+        max_len = max(map(len, input_[0]))
+        input_li = [np.pad(x, [(0, max_len - len(x)), (0,0)],
+            mode='constant') for x in input_[0]]
+        input_ = np.expand_dims(np.stack(input_li), 0)
+        mixture = np.sum(input_, axis=1)
+        data_pt = (mixture,)
+        debug_data = g_sess.run(
             g_model.debug_fetches,
             dict(zip(
                 g_model.debug_feed_keys,
                 data_pt + (hparams.DROPOUT_KEEP_PROB,))))
-        scipy.io.savemat('debug/result.mat', result)
-        import pdb; pdb.set_trace()
+        debug_data['input'] = input_
+        scipy.io.savemat('debug/debug_data.mat', debug_data)
+        print('Debug data written to debug/debug_data.mat')
     else:
         raise ValueError(
             'Unknown mode "%s"' % g_args.mode)

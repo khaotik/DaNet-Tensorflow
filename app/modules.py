@@ -218,7 +218,10 @@ class AnchoredEstimator(Estimator):
             s_attractors = tf.gather_nd(s_attractor_sets, s_subset_choice)
 
         if hparams.DEBUG:
-            self.s_attractor_sets = s_attractor_sets
+            self.debug_fetches = dict(
+                asets=s_attractor_sets,
+                anchors=v_anchors,
+                subset_choice=s_subset_choice)
 
         return s_attractors
 
