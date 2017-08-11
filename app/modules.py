@@ -50,12 +50,14 @@ class Encoder(ModelModule):
 
 class Estimator(ModelModule):
     '''
-    Given embedding in T-F domain, estimates attractor location
+    Estimates attractor location, either from TF-embedding,
+    or true source
     '''
+    USE_TRUTH=True  # set this to true if it uses ground truth
     def __init__(self, model, name):
         self.name = name
 
-    def __call__(self, s_embed):
+    def __call__(self, s_embed, **kwargs):
         '''
         Args:
             s_embed: tensor of shape [batch_size, length, fft_size, embedding_size]
@@ -170,12 +172,84 @@ class BiLstmEncoder(Encoder):
         return s_out
 
 
+@hparams.register_estimator('truth')
+class AverageEstimator(Estimator):
+    '''
+    Estimate attractor from simple average of true assignment
+    '''
+    USE_TRUTH = True
+    def __init__(self, model, name):
+        self.name = name
+
+    def __call__(self, s_embed, s_src_pwr, s_mix_pwr, s_embed_flat=None):
+        if s_embed_flat is None:
+            s_embed_flat = tf.reshape(
+                s_embed,
+                [hparams.BATCH_SIZE, -1, hparams.EMBED_SIZE])
+        with tf.variable_scope(self.name):
+            s_src_assignment = tf.argmax(s_src_pwr, axis=1)
+            s_indices = tf.reshape(
+                s_src_assignment,
+                [hparams.BATCH_SIZE, -1])
+            fn_segmean = lambda _: tf.unsorted_segment_sum(
+                _[0], _[1], hparams.MAX_N_SIGNAL)
+            s_attractors = tf.map_fn(
+                fn_segmean, (s_embed_flat, s_indices), hparams.FLOATX)
+            s_attractors_wgt = tf.map_fn(
+                fn_segmean, (tf.ones_like(s_embed_flat), s_indices),
+                hparams.FLOATX)
+            s_attractors /= (s_attractors_wgt + 1.)
+
+        if hparams.DEBUG:
+            self.debug_fetches = dict()
+        # float[B, C, E]
+        return s_attractors
+
+
+@hparams.register_estimator('truth-weighted')
+class WeightedAverageEstimator(Estimator):
+    '''
+    Estimate attractor from simple average of true assignment
+    '''
+    USE_TRUTH = True
+    def __init__(self, model, name):
+        self.name = name
+
+    def __call__(self, s_embed, s_src_pwr, s_mix_pwr, s_embed_flat=None):
+        if s_embed_flat is None:
+            s_embed_flat = tf.reshape(
+                s_embed,
+                [hparams.BATCH_SIZE, -1, hparams.EMBED_SIZE])
+        with tf.variable_scope(self.name):
+            s_mix_pwr_flat = tf.reshape(
+                s_mix_pwr, [hparams.BATCH_SIZE, -1, 1])
+            s_src_assignment = tf.argmax(s_src_pwr, axis=1)
+            s_indices = tf.reshape(
+                s_src_assignment,
+                [hparams.BATCH_SIZE, -1])
+            fn_segmean = lambda _: tf.unsorted_segment_sum(
+                _[0], _[1], hparams.MAX_N_SIGNAL)
+            s_attractors = tf.map_fn(fn_segmean, (
+                s_embed_flat * s_mix_pwr_flat, s_indices),
+                hparams.FLOATX)
+            s_attractors_wgt = tf.map_fn(fn_segmean, (
+                s_mix_pwr_flat, s_indices),
+                hparams.FLOATX)
+            s_attractors /= (s_attractors_wgt + hparams.EPS)
+
+        if hparams.DEBUG:
+            self.debug_fetches = dict()
+        # float[B, C, E]
+        return s_attractors
+
+
 @hparams.register_estimator('anchor')
 class AnchoredEstimator(Estimator):
     '''
     Estimate attractor from best combination from
     anchors, then perform 1-step EM
     '''
+    USE_TRUTH = False
     def __init__(self, model, name):
         self.name = name
 

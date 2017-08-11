@@ -14,6 +14,7 @@ from collections import OrderedDict
 from functools import reduce
 from itertools import permutations
 from colorsys import hsv_to_rgb
+import sys
 import os
 import copy
 
@@ -118,7 +119,8 @@ def do_separation(s_mixed_signals_pwr, s_attractors, s_embed_flat):
             tensor of shape [batch_size, num_signals, length, fft_size]
     '''
     s_logits = tf.matmul(
-        s_embed_flat, tf.transpose(s_attractors, [0, 2, 1]))
+        s_embed_flat,
+        tf.transpose(s_attractors, [0, 2, 1]))
     s_logits = tf.reshape(
         s_logits, [
             hparams.BATCH_SIZE,
@@ -298,7 +300,6 @@ class Model(object):
                 s_src_signals, axis=1)
 
             s_src_signals_pwr = tf.abs(s_src_signals)
-            s_src_signals_log = tf.log1p(s_src_signals_pwr)
             s_mixed_signals_phase = tf.atan2(
                 tf.imag(s_mixed_signals), tf.real(s_mixed_signals))
             s_mixed_signals_power = tf.abs(s_mixed_signals)
@@ -311,23 +312,12 @@ class Model(object):
                 [hparams.BATCH_SIZE, -1, hparams.EMBED_SIZE])
 
             # TODO make attractor estimator a submodule ?
-            if hparams.TRAIN_ESTIMATOR_METHOD == 'truth':
-                with tf.name_scope('attractor'):
-                    s_src_assignment = tf.argmax(s_src_signals_log, axis=1)
-                    s_indices = tf.reshape(
-                        s_src_assignment,
-                        [hparams.BATCH_SIZE, -1])
-                    fn_segmean = lambda _: tf.unsorted_segment_sum(
-                        _[0], _[1], hparams.MAX_N_SIGNAL)
-                    # float[B, C, E]
-                    s_attractors = tf.map_fn(
-                        fn_segmean, (s_embed_flat, s_indices), hparams.FLOATX)
-            elif hparams.TRAIN_ESTIMATOR_METHOD == 'anchor':
-                estimator = hparams.get_estimator(
-                    'anchor')(self, 'train_estimator')
-                s_attractors = estimator(s_embed)
-            else:
-                raise NotImplementedError()
+            estimator = hparams.get_estimator(
+                hparams.TRAIN_ESTIMATOR_METHOD)(self, 'train_estimator')
+            s_attractors = estimator(
+                s_embed,
+                s_src_pwr=s_src_signals_pwr,
+                s_mix_pwr=s_mixed_signals_log)
 
             using_same_method = (
                 hparams.INFER_ESTIMATOR_METHOD ==
@@ -336,9 +326,11 @@ class Model(object):
             if using_same_method:
                 s_valid_attractors = s_attractors
             else:
-                s_valid_attractors = hparams.get_estimator(
+                valid_estimator = hparams.get_estimator(
                     hparams.INFER_ESTIMATOR_METHOD
-                )(self, 'infer_estimator')(s_embed)
+                )(self, 'infer_estimator')
+                assert not valid_estimator.USE_TRUTH
+                s_valid_attractors = valid_estimator(s_embed)
 
             s_separated_signals_pwr = do_separation(
                 s_mixed_signals_power, s_attractors, s_embed_flat)
@@ -454,13 +446,15 @@ class Model(object):
         self.infer_fetches = dict(signals=s_separated_signals_infer)
 
         if hparams.DEBUG:
-            self.debug_feed_keys = [s_mixed_signals, s_dropout_keep]
+            self.debug_feed_keys = [s_src_signals, s_dropout_keep]
             self.debug_fetches = dict(
                 embed=s_embed,
                 attrs=s_attractors,
                 masks=_s_masks,
-                output=s_separated_signals_infer)
-            self.debug_fetches.update(estimator.debug_fetches)
+                input=s_src_signals,
+                output=s_separated_signals)
+            if estimator is not None:
+                self.debug_fetches.update(estimator.debug_fetches)
 
         self.saver = tf.train.Saver(var_list=v_params_li)
 
@@ -519,11 +513,16 @@ class Model(object):
             cli_report = OrderedDict()
             for i_batch, data_pt in enumerate(dataset.epoch(
                     'valid',
-                    hparams.BATCH_SIZE, shuffle=False)):
+                    hparams.BATCH_SIZE * hparams.MAX_N_SIGNAL,
+                    shuffle=False)):
                 # note: this disables dropout during validation
                 to_feed = dict(
                     zip(self.train_feed_keys, (
-                        np.reshape(data_pt[0], [hparams.BATCH_SIZE, hparams.MAX_N_SIGNAL, -1, hparams.FEATURE_SIZE]),
+                        np.reshape(
+                            data_pt[0], [
+                                hparams.BATCH_SIZE,
+                                hparams.MAX_N_SIGNAL,
+                                -1, hparams.FEATURE_SIZE]),
                         1.)))
                 step_summary, step_fetch = g_sess.run(
                     self.valid_fetches, to_feed)[:2]
@@ -722,13 +721,12 @@ def main():
         input_li = [np.pad(x, [(0, max_len - len(x)), (0,0)],
             mode='constant') for x in input_[0]]
         input_ = np.expand_dims(np.stack(input_li), 0)
-        mixture = np.sum(input_, axis=1)
-        data_pt = (mixture,)
+        data_pt = (input_,)
         debug_data = g_sess.run(
             g_model.debug_fetches,
             dict(zip(
                 g_model.debug_feed_keys,
-                data_pt + (hparams.DROPOUT_KEEP_PROB,))))
+                data_pt + (1.,))))
         debug_data['input'] = input_
         scipy.io.savemat('debug/debug_data.mat', debug_data)
         print('Debug data written to debug/debug_data.mat')
