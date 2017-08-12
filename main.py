@@ -453,6 +453,7 @@ class Model(object):
                 masks=_s_masks,
                 input=s_src_signals,
                 output=s_separated_signals)
+            self.debug_fetches.update(encoder.debug_fetches)
             if estimator is not None:
                 self.debug_fetches.update(estimator.debug_fetches)
 
@@ -664,6 +665,7 @@ def main():
             for src_signals in g_dataset.epoch('test', hparams.MAX_N_SIGNAL):
                 break
             max_len = max(map(len, src_signals[0]))
+            max_len += (-max_len) % hparams.LENGTH_ALIGN
             src_signals_li = [np.pad(
                 x, [(0, max_len - len(x)), (0,0)],
                 mode='constant') for x in src_signals[0]]
@@ -718,6 +720,7 @@ def main():
             'test', hparams.MAX_N_SIGNAL, shuffle=True):
             break
         max_len = max(map(len, input_[0]))
+        max_len += (-max_len) % hparams.LENGTH_ALIGN
         input_li = [np.pad(x, [(0, max_len - len(x)), (0,0)],
             mode='constant') for x in input_[0]]
         input_ = np.expand_dims(np.stack(input_li), 0)

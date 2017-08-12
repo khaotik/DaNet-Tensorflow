@@ -9,40 +9,46 @@ import tensorflow as tf
 # TODO use tf.app.flags to parse hyperparam from input
 #      or consider use json file to store hyperparams
 
+# [--DATA TYPE--]
 FLOATX = 'float32'  # default type for float
 INTX = 'int32'  # defualt type for int
 
+# [--DIMENSIONS--]
 BATCH_SIZE = 32  # minibatch size
 MAX_N_SIGNAL = 2  # speech sources to separate
 FFT_SIZE = 256  # segmenet size in STFT
 FFT_STRIDE = 64  # segmenet stride in STFT
 FFT_WND = np.sqrt(scipy.signal.hann(FFT_SIZE)).astype(FLOATX)
-MAX_TRAIN_LEN = 150  # limit signal length during training, can be None
+LENGTH_ALIGN = 4  # zero pad spectra length multiples of this, useful for CNN
+MAX_TRAIN_LEN = 64  # limit signal length during training, can be None
 SMPRATE = 8000  # sampling rate
 EMBED_SIZE = 20  # embedding size
 
+# [--TRAINING--]
 RELU_LEAKAGE = 0.3  # how leaky relu is, 0 -> relu, 1 -> linear
 EPS = 1e-7  # to prevent sqrt() log() etc cause NaN
 DROPOUT_KEEP_PROB = 1.  # probability to keep in dropout layer
 REG_SCALE = 1e-2  # regularization loss scale
 REG_TYPE = 'L2'  # regularization type, "L2", "L1" or "none"
+LR = 3e-4  # learn rate
+LR_DECAY = None  # TODO
 
 # clamp absolute gradient value within this value, None for no clip
 GRAD_CLIP_THRES = 100.
 
+# [--ARCHITECTURE--]
 # "truth", "k-means", "fixed" or "anchor"
-TRAIN_ESTIMATOR_METHOD = 'anchor'
+TRAIN_ESTIMATOR_METHOD = 'truth-weighted'
 # "k-means", "fixed", "anchor"
 INFER_ESTIMATOR_METHOD = 'anchor'
 NUM_ANCHOR = 6
 
-# ENCODER_TYPE can be "bilstm-orig"
+# ENCODER_TYPE can be "bilstm-orig", "conv-bilstm-v1"
 # check "modules.py" to see available sub-modules
-ENCODER_TYPE = 'bilstm-orig'
+ENCODER_TYPE = 'conv-bilstm-v1'
 OPTIMIZER_TYPE = 'adam'  # "sgd" or "adam"
-LR = 3e-4  # learn rate
-LR_DECAY = None  # TODO
 
+# [--MISC--]
 DATASET_TYPE = 'wsj0'  # "toy", "timit", or "wsj0"
 
 SUMMARY_DIR = './logs'
