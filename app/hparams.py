@@ -20,7 +20,7 @@ FFT_SIZE = 256  # segmenet size in STFT
 FFT_STRIDE = 64  # segmenet stride in STFT
 FFT_WND = np.sqrt(scipy.signal.hann(FFT_SIZE)).astype(FLOATX)
 LENGTH_ALIGN = 4  # zero pad spectra length multiples of this, useful for CNN
-MAX_TRAIN_LEN = 64  # limit signal length during training, can be None
+MAX_TRAIN_LEN = 128  # limit signal length during training, can be None
 SMPRATE = 8000  # sampling rate
 EMBED_SIZE = 20  # embedding size
 
@@ -45,7 +45,7 @@ NUM_ANCHOR = 6
 
 # ENCODER_TYPE can be "bilstm-orig", "conv-bilstm-v1"
 # check "modules.py" to see available sub-modules
-ENCODER_TYPE = 'conv-bilstm-v1'
+ENCODER_TYPE = 'lstm-orig'
 OPTIMIZER_TYPE = 'adam'  # "sgd" or "adam"
 
 # [--MISC--]

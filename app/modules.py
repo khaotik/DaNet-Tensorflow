@@ -112,6 +112,68 @@ def _lyr_bilstm(
     return tf.nn.dropout(s_output, keep_prob=s_dropout_keep_)
 
 
+@hparams.register_encoder('lstm-orig')
+class LstmEncoder(Encoder):
+    '''
+    LSTM network as in original paper
+    '''
+    def __init__(self, model, name):
+        self.name = name
+        self.model = model
+        self.debug_fetches = {}
+
+    def __call__(self, s_signals, s_dropout_keep=1.):
+        with tf.variable_scope(self.name):
+            s_signals = s_signals - tf.reduce_mean(
+                s_signals, axis=(1,2), keep_dims=True)
+
+            hdim = 600
+            init_range = 1.15 / sqrt(hdim)
+            w_initer = tf.random_uniform_initializer(
+                -init_range, init_range, dtype=hparams.FLOATX)
+
+            b_init_value = np.zeros([hdim*4], dtype=hparams.FLOATX)
+            b_init_value[hdim*1:hdim*2] = 1.5  # input gate
+            b_init_value[hdim*2:hdim*3] = -1.  # forget gate
+            b_init_value[hdim*3:hdim*4] = 1.  # output gate
+            b_initer = tf.constant_initializer(b_init_value, dtype=hparams.FLOATX)
+
+            s_mid0 = self.model.lyr_lstm(
+                'lstm0', s_signals, hdim,
+                t_axis=-2, axis=-1,
+                w_init=w_initer, b_init=b_initer)
+            s_mid1 = self.model.lyr_lstm(
+                'lstm1', s_mid0, hdim,
+                t_axis=-2, axis=-1,
+                w_init=w_initer, b_init=b_initer)
+            s_mid2 = self.model.lyr_lstm(
+                'lstm2', s_mid1, hdim,
+                t_axis=-2, axis=-1,
+                w_init=w_initer, b_init=b_initer)
+            s_out = self.model.lyr_lstm(
+                'lstm3', s_mid2, hdim,
+                t_axis=-2, axis=-1,
+                w_init=w_initer, b_init=b_initer)
+
+            s_out = s_out - tf.reduce_mean(
+                s_out, axis=(1,2), keep_dims=True)
+
+            init_range = 1.85
+            s_out = ops.lyr_linear(
+                'output',
+                s_out,
+                hparams.FEATURE_SIZE * hparams.EMBED_SIZE,
+                w_init=tf.random_uniform_initializer(
+                    -init_range, init_range, dtype=hparams.FLOATX),
+                bias=None)
+            s_out = tf.reshape(
+                s_out, [
+                    hparams.BATCH_SIZE, -1,
+                    hparams.FEATURE_SIZE, hparams.EMBED_SIZE])
+        return s_out
+
+
+
 @hparams.register_encoder('bilstm-orig')
 class BiLstmEncoder(Encoder):
     '''
