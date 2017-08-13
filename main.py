@@ -41,9 +41,6 @@ g_args = None
 g_model = None
 g_dataset = None
 
-if hparams.DEBUG:
-    _g_masks = None
-
 def _dict_add(dst, src):
     for k,v in src.items():
         if k not in dst:
@@ -102,40 +99,6 @@ def save_wavfile(filename, feature):
     data = utils.istft(
         feature, stride=hparams.FFT_STRIDE, window=hparams.FFT_WND)
     scipy.io.wavfile.write(filename, hparams.SMPRATE, data)
-
-
-def do_separation(s_mixed_signals_pwr, s_attractors, s_embed_flat):
-    '''
-    Given mixture log-power spectra, embedding, and attractors,
-      find masks and return magnitude spectra of separated signals.
-
-    Args:
-        s_mixed_signals_log: tensor of shape [batch_size, length, fft_size]
-        s_attractors: tensor of shape [batch_size, num_signals, embedding_size]
-        s_embed_flat: tensor of shape [batch_size, length*fft_size, embedding_size]
-
-    Returns:
-        s_separated_signals_log:
-            tensor of shape [batch_size, num_signals, length, fft_size]
-    '''
-    s_logits = tf.matmul(
-        s_embed_flat,
-        tf.transpose(s_attractors, [0, 2, 1]))
-    s_logits = tf.reshape(
-        s_logits, [
-            hparams.BATCH_SIZE,
-            -1, hparams.FEATURE_SIZE,
-            hparams.MAX_N_SIGNAL])
-    s_masks = tf.nn.sigmoid(s_logits)
-    s_separated_signals_pwr = tf.expand_dims(
-        s_mixed_signals_pwr, -1) * s_masks
-
-    if hparams.DEBUG:
-        global _g_masks
-        _g_masks = s_masks
-
-    return tf.transpose(
-        s_separated_signals_pwr, [0, 3, 1, 2])
 
 
 class Model(object):
@@ -317,7 +280,7 @@ class Model(object):
             s_attractors = estimator(
                 s_embed,
                 s_src_pwr=s_src_signals_pwr,
-                s_mix_pwr=s_mixed_signals_log)
+                s_mix_pwr=s_mixed_signals_power)
 
             using_same_method = (
                 hparams.INFER_ESTIMATOR_METHOD ==
@@ -332,16 +295,15 @@ class Model(object):
                 assert not valid_estimator.USE_TRUTH
                 s_valid_attractors = valid_estimator(s_embed)
 
-            s_separated_signals_pwr = do_separation(
+            separator = hparams.get_separator(
+                hparams.SEPARATOR_TYPE)(self, 'separator')
+            s_separated_signals_pwr = separator(
                 s_mixed_signals_power, s_attractors, s_embed_flat)
-
-            if hparams.DEBUG:
-                _s_masks = _g_masks
 
             if using_same_method:
                 s_separated_signals_pwr_valid = s_separated_signals_pwr
             else:
-                s_separated_signals_pwr_valid = do_separation(
+                s_separated_signals_pwr_valid = separator(
                     s_mixed_signals_power, s_valid_attractors, s_embed_flat)
 
             # loss and SNR for training
@@ -450,10 +412,10 @@ class Model(object):
             self.debug_fetches = dict(
                 embed=s_embed,
                 attrs=s_attractors,
-                masks=_s_masks,
                 input=s_src_signals,
                 output=s_separated_signals)
             self.debug_fetches.update(encoder.debug_fetches)
+            self.debug_fetches.update(separator.debug_fetches)
             if estimator is not None:
                 self.debug_fetches.update(estimator.debug_fetches)
 
@@ -624,6 +586,7 @@ def main():
     stdout.flush()
 
     print('Encoder type: "%s"' % hparams.ENCODER_TYPE)
+    print('Separator type: "%s"' % hparams.SEPARATOR_TYPE)
     print('Training estimator type: "%s"' % hparams.TRAIN_ESTIMATOR_METHOD)
     print('Inference estimator type: "%s"' % hparams.INFER_ESTIMATOR_METHOD)
 

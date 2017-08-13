@@ -10,19 +10,27 @@ import tensorflow as tf
 #      or consider use json file to store hyperparams
 
 # [--DATA TYPE--]
-FLOATX = 'float32'  # default type for float
-INTX = 'int32'  # defualt type for int
+FLOATX = 'float32'       # default type for float
+INTX = 'int32'           # defualt type for int
+
+# [--PREPROCESSING--]
+# WARNING, if you change anything under this category,
+# please re-run data preprocessing script
+
+# STFT segment size, stride and window function
+FFT_SIZE = 256
+FFT_STRIDE = 64
+FFT_WND = np.sqrt(scipy.signal.hann(FFT_SIZE)).astype(FLOATX)
+SMPRATE = 8000          # sampling rate
 
 # [--DIMENSIONS--]
-BATCH_SIZE = 32  # minibatch size
-MAX_N_SIGNAL = 2  # speech sources to separate
-FFT_SIZE = 256  # segmenet size in STFT
-FFT_STRIDE = 64  # segmenet stride in STFT
-FFT_WND = np.sqrt(scipy.signal.hann(FFT_SIZE)).astype(FLOATX)
-LENGTH_ALIGN = 4  # zero pad spectra length multiples of this, useful for CNN
-MAX_TRAIN_LEN = 128  # limit signal length during training, can be None
-SMPRATE = 8000  # sampling rate
-EMBED_SIZE = 20  # embedding size
+BATCH_SIZE = 32         # minibatch size
+MAX_N_SIGNAL = 2        # speech sources to separate
+
+
+LENGTH_ALIGN = 4        # zero pad spectra length multiples of this, useful for CNN
+MAX_TRAIN_LEN = 128     # limit signal length during training, can be None
+EMBED_SIZE = 20         # embedding size
 
 # [--TRAINING--]
 RELU_LEAKAGE = 0.3      # how leaky relu is, 0 -> relu, 1 -> linear
@@ -38,22 +46,28 @@ GRAD_CLIP_THRES = 100.
 
 # [--ARCHITECTURE--]
 # "truth", "k-means", "fixed" or "anchor"
-TRAIN_ESTIMATOR_METHOD = 'truth-weighted'
+TRAIN_ESTIMATOR_METHOD = 'truth-threshould'
 # "k-means", "fixed", "anchor"
 INFER_ESTIMATOR_METHOD = 'anchor'
 NUM_ANCHOR = 6
 
+# check "modules.py" to see available sub-modules
 # ENCODER_TYPE options:
 #   lstm-orig
 #   bilstm-orig
 #   conv-bilstm-v1
 #   toy
-# check "modules.py" to see available sub-modules
-ENCODER_TYPE = 'lstm-orig'
+ENCODER_TYPE = 'bilstm-orig'
+# SEPARATOR_TYPE options:
+#   dot-orig
+SEPARATOR_TYPE = 'dot-sigmoid-orig'
+# OPTIMIZER_TYPE options:
+#   adam
+#   sgd
 OPTIMIZER_TYPE = 'adam'  # "sgd" or "adam"
 
 # [--MISC--]
-DATASET_TYPE = 'wsj0'  # "toy", "timit", or "wsj0"
+DATASET_TYPE = 'timit'  # "toy", "timit", or "wsj0"
 
 SUMMARY_DIR = './logs'
 
@@ -72,6 +86,7 @@ assert 0. < DROPOUT_KEEP_PROB <= 1.
 # registry
 encoder_registry = {}
 estimator_registry = {}
+separator_registry = {}
 ozer_registry = {}
 dataset_registry = {}
 
@@ -97,6 +112,17 @@ def register_estimator(name):
 
 def get_estimator(name):
     return estimator_registry[name]
+
+
+def register_separator(name):
+    def wrapper(cls):
+        separator_registry[name] = cls
+        return cls
+    return wrapper
+
+
+def get_separator(name):
+    return separator_registry[name]
 
 
 def register_optimizer(name):

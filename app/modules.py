@@ -17,7 +17,8 @@ class ModelModule(object):
         model: Model instance
     '''
     def __init__(self, model, name):
-        pass
+        self.debug_fetches = {}
+        self.name = name
 
     def __call__(self, s_dropout_keep=1.):
         raise NotImplementedError()
@@ -28,19 +29,20 @@ class Encoder(ModelModule):
     maps log-magnitude-spectra to embedding
     '''
     def __init__(self, model, name):
+        self.debug_fetches = {}
         self.name = name
 
     def __call__(self, s_mixture, s_dropout_keep=1.):
         '''
         Args:
             s_mixture: tensor variable
-                3d tensor of shape [batch_size, length, fft_size]
+                3d tensor of shape [batch_size, length, feature_size]
 
             s_dropout_keep: scalar const or variable
                 keep probability for dropout layer
 
         Returns:
-            [batch_size, length, fft_size, embedding_size]
+            [batch_size, length, feature_size, embedding_size]
 
         Notes:
             `length` is a not constant
@@ -56,14 +58,39 @@ class Estimator(ModelModule):
     USE_TRUTH=True  # set this to true if it uses ground truth
     def __init__(self, model, name):
         self.name = name
+        self.debug_fetches = {}
 
     def __call__(self, s_embed, **kwargs):
         '''
         Args:
-            s_embed: tensor of shape [batch_size, length, fft_size, embedding_size]
+            s_embed: tensor of shape [batch_size, length, feature_size, embedding_size]
 
         Returns:
             s_attractors: tensor of shape [batch_size, num_signals, embedding_size]
+        '''
+        raise NotImplementedError()
+
+
+class Separator(ModelModule):
+    '''
+    Given mixture power spectra, attractors, and embedding,
+    produce power spectra of separated signals
+    '''
+    def __init__(self, model, name):
+        self.name = name
+        self.debug_fetches = {}
+
+    def __call__(self, s_mixed_signals_pwr, s_attractors, s_embed_flat):
+        '''
+        Args:
+            s_mixed_signals_pwr:
+                tensor of shape [batch_size, length, feature_size]
+
+            s_attractors:
+                tensor of shape [num_attractor, embed_dims]
+
+            s_embed_flat:
+                tensor of shape [batch_size, num_signals, length, feature_size]
         '''
         raise NotImplementedError()
 
@@ -182,6 +209,7 @@ class BiLstmEncoder(Encoder):
     def __init__(self, model, name):
         self.name = name
         self.model = model
+        self.debug_fetches = {}
 
     def __call__(self, s_signals, s_dropout_keep=1.):
         with tf.variable_scope(self.name):
@@ -393,6 +421,45 @@ class AverageEstimator(Estimator):
         return s_attractors
 
 
+@hparams.register_estimator('truth-threshould')
+class WeightedAverageEstimator(Estimator):
+    '''
+    Estimate attractor from simple average of true assignment
+    '''
+    USE_TRUTH = True
+    def __init__(self, model, name):
+        self.name = name
+
+    def __call__(self, s_embed, s_src_pwr, s_mix_pwr, s_embed_flat=None):
+        if s_embed_flat is None:
+            s_embed_flat = tf.reshape(
+                s_embed,
+                [hparams.BATCH_SIZE, -1, hparams.EMBED_SIZE])
+        with tf.variable_scope(self.name):
+            s_wgt = tf.reshape(
+                s_mix_pwr, [hparams.BATCH_SIZE, -1, 1])
+            s_wgt = tf.cast(
+                tf.less(18., s_wgt), hparams.FLOATX)
+            s_src_assignment = tf.argmax(s_src_pwr, axis=1)
+            s_indices = tf.reshape(
+                s_src_assignment,
+                [hparams.BATCH_SIZE, -1])
+            fn_segmean = lambda _: tf.unsorted_segment_sum(
+                _[0], _[1], hparams.MAX_N_SIGNAL)
+            s_attractors = tf.map_fn(fn_segmean, (
+                s_embed_flat * s_wgt, s_indices),
+                hparams.FLOATX)
+            s_attractors_wgt = tf.map_fn(fn_segmean, (
+                s_wgt, s_indices),
+                hparams.FLOATX)
+            s_attractors /= (s_attractors_wgt + hparams.EPS)
+
+        if hparams.DEBUG:
+            self.debug_fetches = dict()
+        # float[B, C, E]
+        return s_attractors
+
+
 @hparams.register_estimator('truth-weighted')
 class WeightedAverageEstimator(Estimator):
     '''
@@ -408,7 +475,7 @@ class WeightedAverageEstimator(Estimator):
                 s_embed,
                 [hparams.BATCH_SIZE, -1, hparams.EMBED_SIZE])
         with tf.variable_scope(self.name):
-            s_mix_pwr_flat = tf.reshape(
+            s_wgt = tf.reshape(
                 s_mix_pwr, [hparams.BATCH_SIZE, -1, 1])
             s_src_assignment = tf.argmax(s_src_pwr, axis=1)
             s_indices = tf.reshape(
@@ -417,10 +484,10 @@ class WeightedAverageEstimator(Estimator):
             fn_segmean = lambda _: tf.unsorted_segment_sum(
                 _[0], _[1], hparams.MAX_N_SIGNAL)
             s_attractors = tf.map_fn(fn_segmean, (
-                s_embed_flat * s_mix_pwr_flat, s_indices),
+                s_embed_flat * s_wgt, s_indices),
                 hparams.FLOATX)
             s_attractors_wgt = tf.map_fn(fn_segmean, (
-                s_mix_pwr_flat, s_indices),
+                s_wgt, s_indices),
                 hparams.FLOATX)
             s_attractors /= (s_attractors_wgt + hparams.EPS)
 
@@ -485,4 +552,64 @@ class AnchoredEstimator(Estimator):
                 subset_choice=s_subset_choice)
 
         return s_attractors
+
+
+@hparams.register_separator('dot-sigmoid-orig')
+class DotSeparator(Separator):
+    '''
+    Use dot product as similarity measure, same as orignal paper
+    '''
+    def __init__(self, model, name):
+        self.name = name
+        self.debug_fetches = {}
+
+    def __call__(self, s_mixed_signals_pwr, s_attractors, s_embed_flat):
+        with tf.variable_scope(self.name):
+            s_logits = tf.matmul(
+                s_embed_flat,
+                tf.transpose(s_attractors, [0, 2, 1]))
+            s_logits = tf.reshape(
+                s_logits, [
+                    hparams.BATCH_SIZE,
+                    -1, hparams.FEATURE_SIZE,
+                    hparams.MAX_N_SIGNAL])
+            s_masks = tf.nn.sigmoid(s_logits)
+            s_separated_signals_pwr = tf.expand_dims(
+                s_mixed_signals_pwr, -1) * s_masks
+
+            if hparams.DEBUG:
+                self.debug_fetches['masks'] = s_masks
+
+            return tf.transpose(
+                s_separated_signals_pwr, [0, 3, 1, 2])
+
+
+@hparams.register_separator('dot-softmax-orig')
+class DotSeparator(Separator):
+    '''
+    Use dot product as similarity measure, same as orignal paper
+    '''
+    def __init__(self, model, name):
+        self.name = name
+        self.debug_fetches = {}
+
+    def __call__(self, s_mixed_signals_pwr, s_attractors, s_embed_flat):
+        with tf.variable_scope(self.name):
+            s_logits = tf.matmul(
+                s_embed_flat,
+                tf.transpose(s_attractors, [0, 2, 1]))
+            s_logits = tf.reshape(
+                s_logits, [
+                    hparams.BATCH_SIZE,
+                    -1, hparams.FEATURE_SIZE,
+                    hparams.MAX_N_SIGNAL])
+            s_masks = tf.nn.softmax(s_logits)
+            s_separated_signals_pwr = tf.expand_dims(
+                s_mixed_signals_pwr, -1) * s_masks
+
+            if hparams.DEBUG:
+                self.debug_fetches['masks'] = s_masks
+
+            return tf.transpose(
+                s_separated_signals_pwr, [0, 3, 1, 2])
 
