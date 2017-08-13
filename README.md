@@ -72,50 +72,62 @@ Under the root dirctory of this repo:
 
 - train a model for 10 epoch and see accuracy
 
-`python main.py`
+```bash
+    python main.py
+```
 
 
 - train a model for 100 epoch and save it
 
-`python main.py -ne=100 -o='params.ckpt'`
+```bash
+    python main.py -ne=100 -o='params.ckpt'
+```
 
 
 - continue from last saved model, train 100 more epoch, save back
 
-`python main.py -ne=100 -i='params.ckpt' -o='params.ckpt'`
+```bash
+    python main.py -ne=100 -i='params.ckpt' -o='params.ckpt'
+```
 
 
 - test the trained model on test set
 
-`python main.py -i='params.ckpt' -m=test`
+```bash
+    python main.py -i='params.ckpt' -m=test
+```
 
 
 - draw a sample from test set, then separate it:
 
 ```
-$ python main.py -i='params.ckpt' -m=demo
-$ ls *.wav
-demo.wav demo_separated_1.wav demo_separated_2.wav
+    $ python main.py -i='params.ckpt' -m=demo
+    $ ls *.wav
+    demo.wav demo_separated_1.wav demo_separated_2.wav
 ```
 
 
 - separate a given WAV file:
 
 ```
-$ python main.py -i='params.cpkt' -m=demo -if=file.wav
-$ ls *.wav
-file.wav file_separated_1.wav file_separated_2.wav
+    $ python main.py -i='params.cpkt' -m=demo -if=file.wav
+    $ ls *.wav
+    file.wav file_separated_1.wav file_separated_2.wav
 ```
 
 
 - launch tensorboard and see graphs
 
-`tensorboard --logdir=./logs/`
+```bash
+    tensorboard --logdir=./logs/`
+```
 
 
 - for more CLI arguments, do
 
-`python main.py --help`
+```bash
+    python main.py --help
+```
 
 
 ### Use custom dataset
@@ -125,9 +137,9 @@ file.wav file_separated_1.wav file_separated_2.wav
  - Make a subclass of `app.datasets.dataset.Dataset`
 
 ```python
-@hparams.register_dataset('my_dataset')
-class MyDataset(Dataset):
-    ...
+    @hparams.register_dataset('my_dataset')
+    class MyDataset(Dataset):
+        ...
 ```
 
 You can use `app/datasets/timit.py` as an reference.
@@ -135,7 +147,7 @@ You can use `app/datasets/timit.py` as an reference.
  - In `app/datasets/__init__.py`, add:
 
 ```python
-import app.datasets.my_dataset
+    import app.datasets.my_dataset
 ```
 
  - To use your dataset, set `DATASET_TYPE='my_dataset'` in `app/hparams.py`
@@ -143,17 +155,21 @@ import app.datasets.my_dataset
 
 ### Customize model
 
-You can make subclass of `Estimator` or `Encoder` to tweak model.
+You can make subclass of `Estimator`, `Encoder`, or `Separator` to tweak model.
 
 - `Encoder` is for getting embedding from log-magnitude spectra.
 
 - `Estimator` is for estimating attractor points from embedding.
+
+- `Separator` uses mixture spectra, mixture embedding and attractor to get separated spectra.
 
 
 You can set encoder type by setting `ENCODER_TYPE` in `hparams.py`
 
 You can set estimator type by setting
 `TRAIN_ESTIMATOR_METHOD` and `INFER_ESTIMATOR_METHOD` in `hparams.py`
+
+You can set separator type by setting `SEPARATOR_TYPE` in `hparams.py`
 
 
 Make sure to use `@register_*` decorator for your class.
