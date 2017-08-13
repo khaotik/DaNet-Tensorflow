@@ -600,15 +600,22 @@ def main():
         help='choose dataset to use, overrides hparams.DATASET_TYPE')
     parser.add_argument('-lr', '--learn-rate',
         help='Learn rate, overrides hparams.LR')
+    parser.add_argument('-tl', '--train-length',
+        help='segment length during training, overrides hparams.MAX_TRAIN_LEN')
     g_args = parser.parse_args()
 
     # TODO manage device
 
+    # Do override from arguments
     if g_args.learn_rate is not None:
         hparams.LR = float(g_args.learn_rate)
         assert hparams.LR >= 0.
+    if g_args.train_length is not None:
+        hparams.MAX_TRAIN_LEN = int(g_args.train_length)
+        assert hparams.MAX_TRAIN_LEN >= 2
     if g_args.dataset is not None:
         hparams.DATASET_TYPE = g_args.dataset
+
     stdout.write('Preparing dataset "%s" ... ' % hparams.DATASET_TYPE)
     stdout.flush()
     g_dataset = hparams.get_dataset()()
@@ -666,9 +673,9 @@ def main():
                 break
             max_len = max(map(len, src_signals[0]))
             max_len += (-max_len) % hparams.LENGTH_ALIGN
-            src_signals_li = [np.pad(
-                x, [(0, max_len - len(x)), (0,0)],
-                mode='constant') for x in src_signals[0]]
+            src_signals_li = [
+                utils.random_zeropad(x, max_len-len(x), axis=-2)
+                for x in src_signals[0]]
             src_signals = np.stack(src_signals_li)
             raw_mixture = np.sum(src_signals, axis=0)
             save_wavfile(filename, raw_mixture)
@@ -721,8 +728,9 @@ def main():
             break
         max_len = max(map(len, input_[0]))
         max_len += (-max_len) % hparams.LENGTH_ALIGN
-        input_li = [np.pad(x, [(0, max_len - len(x)), (0,0)],
-            mode='constant') for x in input_[0]]
+        input_li = [
+            utils.random_zeropad(x, max_len-len(x), axis=-2)
+            for x in input_[0]]
         input_ = np.expand_dims(np.stack(input_li), 0)
         data_pt = (input_,)
         debug_data = g_sess.run(

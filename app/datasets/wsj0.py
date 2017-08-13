@@ -5,6 +5,7 @@ import h5py
 from fuel.datasets.hdf5 import H5PYDataset
 from fuel.schemes import SequentialScheme
 
+import app.utils as utils
 import app.hparams as hparams
 from app.datasets.dataset import Dataset
 
@@ -48,9 +49,9 @@ class Wsj0Dataset(Dataset):
         for req in req_itor:
             data_pt = dataset.get_data(handle, req)
             max_len = max(map(len, data_pt[0]))
-            spectra_li = [np.pad(
-                x, [(0, max_len - len(x)), (0, 0)],
-                mode='constant') for x in data_pt[0]]
+            spectra_li = [utils.random_zeropad(
+                x, max_len - len(x), axis=-2)
+                for x in data_pt[0]]
             spectra = np.stack(spectra_li)
             yield (spectra,)
         dataset.close(handle)

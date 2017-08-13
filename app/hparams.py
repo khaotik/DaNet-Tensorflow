@@ -25,13 +25,13 @@ SMPRATE = 8000  # sampling rate
 EMBED_SIZE = 20  # embedding size
 
 # [--TRAINING--]
-RELU_LEAKAGE = 0.3  # how leaky relu is, 0 -> relu, 1 -> linear
-EPS = 1e-7  # to prevent sqrt() log() etc cause NaN
+RELU_LEAKAGE = 0.3      # how leaky relu is, 0 -> relu, 1 -> linear
+EPS = 1e-7              # to prevent sqrt() log() etc cause NaN
 DROPOUT_KEEP_PROB = 1.  # probability to keep in dropout layer
-REG_SCALE = 1e-2  # regularization loss scale
-REG_TYPE = 'L2'  # regularization type, "L2", "L1" or "none"
-LR = 3e-4  # learn rate
-LR_DECAY = None  # TODO
+REG_SCALE = 1e-2        # regularization loss scale
+REG_TYPE = 'L2'         # regularization type, "L2", "L1" or "none"
+LR = 3e-4               # learn rate
+LR_DECAY = None         # TODO
 
 # clamp absolute gradient value within this value, None for no clip
 GRAD_CLIP_THRES = 100.
@@ -43,7 +43,11 @@ TRAIN_ESTIMATOR_METHOD = 'truth-weighted'
 INFER_ESTIMATOR_METHOD = 'anchor'
 NUM_ANCHOR = 6
 
-# ENCODER_TYPE can be "bilstm-orig", "conv-bilstm-v1"
+# ENCODER_TYPE options:
+#   lstm-orig
+#   bilstm-orig
+#   conv-bilstm-v1
+#   toy
 # check "modules.py" to see available sub-modules
 ENCODER_TYPE = 'lstm-orig'
 OPTIMIZER_TYPE = 'adam'  # "sgd" or "adam"

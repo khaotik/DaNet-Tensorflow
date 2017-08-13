@@ -1,3 +1,4 @@
+from random import randint
 import numpy as np
 from itertools import product
 
@@ -70,3 +71,18 @@ def istft(X, stride, window):
     x[pos] /= wsum[pos]
     return x
 
+
+def random_zeropad(X, padlen, axis=-1):
+    '''
+    This randomly do zero padding in both directions, on specified axis
+    '''
+    if padlen == 0:
+        return X
+    l = randint(0, padlen)
+    r = padlen - l
+
+    ndim = X.ndim
+    assert -ndim <= axis < ndim
+    axis %= X.ndim
+    pad = [(0,0)] * axis + [(l, r)] + [(0,0)] * (ndim-axis-1)
+    return np.pad(X, pad, mode='constant')

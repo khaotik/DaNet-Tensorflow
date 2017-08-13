@@ -7,6 +7,7 @@ import gc
 import numpy as np
 
 import app.hparams as hparams
+import app.utils as utils
 from app.datasets.dataset import Dataset
 
 # TODO should we use pathlib to handle path?
@@ -47,7 +48,7 @@ class TimitDataset(Dataset):
             sig_len = max(map(len, signals_batch_li))
             txt_len = max(map(len, texts_batch_li))
             signals_batch = np.stack(
-                [np.pad(s, ((0, sig_len-len(s)), (0, 0)), mode='constant')
+                [utils.random_zeropad(s, sig_len-len(s), axis=-2)
                     for s in signals_batch_li])
             text_indices = np.empty(
                 (reduce(int.__add__, map(len, texts_batch_li)), 2),
