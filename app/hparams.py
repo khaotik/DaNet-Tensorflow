@@ -39,15 +39,25 @@ DROPOUT_KEEP_PROB = 1.  # probability to keep in dropout layer
 REG_SCALE = 1e-2        # regularization loss scale
 REG_TYPE = 'L2'         # regularization type, "L2", "L1" or "none"
 LR = 3e-4               # learn rate
-LR_DECAY = None         # TODO
+LR_DECAY = .8           # learn rate decaying, can be None
+
+# "fixed" -> decay learn rate on each epoch
+# "adaptive" -> only decay if validation or training error don't get better
+LR_DECAY_TYPE = 'adaptive'
+NUM_EPOCH_PER_LR_DECAY = 10
 
 # clamp absolute gradient value within this value, None for no clip
 GRAD_CLIP_THRES = 100.
 
 # [--ARCHITECTURE--]
-# "truth", "k-means", "fixed" or "anchor"
-TRAIN_ESTIMATOR_METHOD = 'truth-threshould'
-# "k-means", "fixed", "anchor"
+# TRAIN_ESTIMATOR_METHOD options:
+# "truth"
+# "truth-weighted"
+# "truth-threshold"
+# "anchor"
+TRAIN_ESTIMATOR_METHOD = 'truth-weighted'
+# TRAIN_ESTIMATOR_METHOD options:
+# "anchor"
 INFER_ESTIMATOR_METHOD = 'anchor'
 NUM_ANCHOR = 6
 

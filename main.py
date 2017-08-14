@@ -110,6 +110,11 @@ class Model(object):
     def __init__(self, name='BaseModel'):
         self.name = name
         self.s_states_di = {}
+        self.v_learn_rate = tf.Variable(
+            hparams.LR,
+            trainable=False,
+            dtype=hparams.FLOATX,
+            name='learn_rate')
 
     def lyr_lstm(
             self, name, s_x, hdim,
@@ -217,6 +222,13 @@ class Model(object):
             s_cell_seq, = tf.scan(
                 op_gru, s_x, initializer=(v_cell,))
         return s_cell_seq if t_axis == 0 else tf.transpose(s_cell_seq, perm)
+
+    def set_learn_rate(self, lr):
+        global g_sess
+        g_sess.run(tf.assign(self.v_learn_rate, lr))
+
+    def get_learn_rate(self):
+        return g_sess.run(self.v_learn_rate)
 
     def save_params(self, filename, step=None):
         global g_sess
@@ -381,7 +393,7 @@ class Model(object):
 
         # apply optimizer
         ozer = hparams.get_optimizer()(
-            learn_rate=hparams.LR, lr_decay=hparams.LR_DECAY)
+            learn_rate=self.v_learn_rate, lr_decay=hparams.LR_DECAY)
 
         v_params_li = tf.trainable_variables()
         r_apply_grads = ozer.compute_gradients(s_train_loss, v_params_li)
@@ -431,6 +443,10 @@ class Model(object):
     def train(self, n_epoch, dataset):
         global g_args
         train_writer = tf.summary.FileWriter(hparams.SUMMARY_DIR, g_sess.graph)
+        best_loss = float('+inf')
+        best_loss_time = 0
+        self.set_learn_rate(hparams.LR)
+        print('Set learning rate to %f' % hparams.LR)
         for i_epoch in range(n_epoch):
             cli_report = OrderedDict()
             for i_batch, data_pt in enumerate(dataset.epoch(
@@ -457,6 +473,28 @@ class Model(object):
                 stdout.flush()
                 _dict_add(cli_report, step_fetch)
             _dict_mul(cli_report, 1. / (i_batch+1))
+            if hparams.LR_DECAY_TYPE == 'adaptive':
+                if cli_report['loss'] < best_loss:
+                    best_loss = cli_report['loss']
+                    best_loss_time = 0
+                else:
+                    best_loss_time += 1
+            elif hparams.LR_DECAY_TYPE == 'fixed':
+                best_loss_time += 1
+            elif hparams.LR_DECAY_TYPE is None:
+                pass
+            else:
+                raise ValueError(
+                    'Unknown LR_DECAY_TYPE "%s"' % hparams.LR_DECAY_TYPE)
+
+            if best_loss_time == hparams.NUM_EPOCH_PER_LR_DECAY:
+                best_loss_time = 0
+                old_lr = self.get_learn_rate()
+                new_lr = old_lr * hparams.LR_DECAY
+                self.set_learn_rate(new_lr)
+                stdout.write('[LR %f -> %f]' % (old_lr, new_lr))
+                stdout.flush()
+
             if not g_args.no_save_on_epoch:
                 if any(map(isnan, cli_report.values())):
                     if i_epoch:
@@ -465,7 +503,8 @@ class Model(object):
                         stdout.flush()
                         i_epoch -= 1
                         # FIXME: this path don't work windows
-                        self.load_params('saves/' + self.name + ('_e%d' % (i_epoch+1)))
+                        self.load_params(
+                            'saves/' + self.name + ('_e%d' % (i_epoch+1)))
                         stdout.write('done')
                         stdout.flush()
                         continue

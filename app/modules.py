@@ -421,7 +421,7 @@ class AverageEstimator(Estimator):
         return s_attractors
 
 
-@hparams.register_estimator('truth-threshould')
+@hparams.register_estimator('truth-threshold')
 class WeightedAverageEstimator(Estimator):
     '''
     Estimate attractor from simple average of true assignment
@@ -439,7 +439,7 @@ class WeightedAverageEstimator(Estimator):
             s_wgt = tf.reshape(
                 s_mix_pwr, [hparams.BATCH_SIZE, -1, 1])
             s_wgt = tf.cast(
-                tf.less(18., s_wgt), hparams.FLOATX)
+                tf.less(5., s_wgt), hparams.FLOATX)
             s_src_assignment = tf.argmax(s_src_pwr, axis=1)
             s_indices = tf.reshape(
                 s_src_assignment,
