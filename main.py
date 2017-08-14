@@ -306,9 +306,19 @@ class Model(object):
                 s_separated_signals_pwr_valid = separator(
                     s_mixed_signals_power, s_valid_attractors, s_embed_flat)
 
+            # use mixture phase and estimated power to get separated signal
+            s_mixed_signals_phase = tf.expand_dims(s_mixed_signals_phase, 1)
+            s_separated_signals = tf.complex(
+                tf.cos(s_mixed_signals_phase) * s_separated_signals_pwr,
+                tf.sin(s_mixed_signals_phase) * s_separated_signals_pwr)
+
             # loss and SNR for training
+            # s_train_loss, v_perms, s_perm_sets = ops.pit_mse_loss(
+                # s_src_signals_pwr, s_separated_signals_pwr)
             s_train_loss, v_perms, s_perm_sets = ops.pit_mse_loss(
-                s_src_signals_pwr, s_separated_signals_pwr)
+                s_src_signals, s_separated_signals)
+
+            # resolve permutation
             s_perm_idxs = tf.stack([
                 tf.tile(
                     tf.expand_dims(tf.range(hparams.BATCH_SIZE), 1),
@@ -316,20 +326,16 @@ class Model(object):
                 tf.gather(v_perms, s_perm_sets)], axis=2)
             s_perm_idxs = tf.reshape(
                 s_perm_idxs, [hparams.BATCH_SIZE*hparams.MAX_N_SIGNAL, 2])
-            s_separated_signals_pwr = tf.gather_nd(
-                s_separated_signals_pwr, s_perm_idxs)
-            s_separated_signals_pwr = tf.reshape(
-                s_separated_signals_pwr, [
+            s_separated_signals = tf.gather_nd(
+                s_separated_signals, s_perm_idxs)
+            s_separated_signals = tf.reshape(
+                s_separated_signals, [
                     hparams.BATCH_SIZE,
                     hparams.MAX_N_SIGNAL,
                     -1, hparams.FEATURE_SIZE])
 
-            s_mixed_signals_phase = tf.expand_dims(s_mixed_signals_phase, 1)
-            s_separated_signals = tf.complex(
-                tf.cos(s_mixed_signals_phase) * s_separated_signals_pwr,
-                tf.sin(s_mixed_signals_phase) * s_separated_signals_pwr)
             s_train_snr = tf.reduce_mean(ops.batch_snr(
-                s_src_signals, s_separated_signals, is_complex=True))
+                s_src_signals, s_separated_signals))
 
             # ^ for validation / inference
             s_valid_loss, v_perms, s_perm_sets = ops.pit_mse_loss(
@@ -357,7 +363,7 @@ class Model(object):
                 tf.cos(s_mixed_signals_phase) * s_separated_signals_pwr_valid,
                 tf.sin(s_mixed_signals_phase) * s_separated_signals_pwr_valid)
             s_valid_snr = tf.reduce_mean(ops.batch_snr(
-                s_src_signals, s_separated_signals_valid, is_complex=True))
+                s_src_signals, s_separated_signals_valid))
 
 
         # ===============

@@ -164,14 +164,13 @@ def lyr_gru_flat(
     return (s_cell_tp1,)
 
 
-def batch_snr(clear_signal, noisy_signal, is_complex=False):
+def batch_snr(clear_signal, noisy_signal):
     '''
     batched signal to noise raio, assuming zero mean
 
     Args:
         clear_signal: batched array
         noisy_signal: batched_array
-        is_complex: bool
 
     Returns: vector of shape [batch_size]
     '''
@@ -182,7 +181,7 @@ def batch_snr(clear_signal, noisy_signal, is_complex=False):
     assert len(noisy_signal_shp) == ndim
     noise = clear_signal - noisy_signal
 
-    if is_complex:
+    if clear_signal.dtype.is_complex and noisy_signal.dtype.is_complex:
         clear_signal = tf.abs(clear_signal)
         noise = tf.abs(noise)
 
@@ -308,8 +307,14 @@ def pit_mse_loss(s_x, s_y, pit_axis=1, perm_size=None, name='pit_loss'):
 
         s_x = tf.expand_dims(s_x, pit_axis+1)
         s_y = tf.expand_dims(s_y, pit_axis)
-        s_cross_loss = tf.reduce_mean(
-            tf.square(s_x - s_y), reduce_axes)
+        if s_x.dtype.is_complex and s_y.dtype.is_complex:
+            s_diff = s_x - s_y
+            s_cross_loss = tf.reduce_mean(
+                tf.square(tf.real(s_diff)) + tf.square(tf.imag(s_diff)),
+                reduce_axes)
+        else:
+            s_cross_loss = tf.reduce_mean(
+                tf.squared_difference(s_x, s_y), reduce_axes)
         s_loss_sets = tf.einsum(
             'bij,pij->bp', s_cross_loss, s_perms_onehot)
         s_loss_sets_idx = tf.argmin(s_loss_sets, axis=1)
