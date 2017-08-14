@@ -564,6 +564,8 @@ def main():
         help='Learn rate, overrides hparams.LR')
     parser.add_argument('-tl', '--train-length',
         help='segment length during training, overrides hparams.MAX_TRAIN_LEN')
+    parser.add_argument('-bs', '--batch-size',
+        help='set batch size, overrides hparams.BATCH_SIZE')
     g_args = parser.parse_args()
 
     # TODO manage device
@@ -577,6 +579,9 @@ def main():
         assert hparams.MAX_TRAIN_LEN >= 2
     if g_args.dataset is not None:
         hparams.DATASET_TYPE = g_args.dataset
+    if g_args.batch_size is not None:
+        hparams.BATCH_SIZE = int(g_args.batch_size)
+        assert hparams.BATCH_SIZE > 0
 
     stdout.write('Preparing dataset "%s" ... ' % hparams.DATASET_TYPE)
     stdout.flush()
