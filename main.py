@@ -674,7 +674,7 @@ def main():
     elif g_args.mode == 'test':
         g_model.test(g_dataset)
     elif g_args.mode == 'valid':
-        g_model.test(g_dataset, subset)
+        g_model.test(g_dataset, 'valid', 'Valid')
     elif g_args.mode == 'demo':
         # prepare data point
         colors = np.asarray([
