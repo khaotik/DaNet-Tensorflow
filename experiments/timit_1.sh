@@ -16,7 +16,13 @@ if [ ! $? == 0 ]; then exit; fi
 python main.py -i $SAVFILE -tl=128 -o $SAVFILE -ds=timit -ne=100 -lr=1e-5 --no-valid-on-epoch
 if [ ! $? == 0 ]; then exit; fi
 
-python main.py -i $SAVFILE -tl=256 -o $SAVFILE -ds=timit -ne=100 -lr=3e-6 --no-valid-on-epoch
+python main.py -i $SAVFILE -tl=256 -bs=16 -o $SAVFILE -ds=timit -ne=100 -lr=3e-6 --no-valid-on-epoch
 if [ ! $? == 0 ]; then exit; fi
 
-python main.py -i $SAVFILE -tl=256 -o $SAVFILE -ds=timit -ne=100 -lr=1e-6 --no-valid-on-epoch
+python main.py -i $SAVFILE -tl=256 -bs=16 -o $SAVFILE -ds=timit -ne=100 -lr=1e-6 --no-valid-on-epoch
+if [ ! $? == 0 ]; then exit; fi
+
+python main.py -i $SAVFILE -tl=512 -bs=8 -o $SAVFILE -ds=timit -ne=100 -lr=5e-7 --no-valid-on-epoch
+if [ ! $? == 0 ]; then exit; fi
+
+python main.py -i $SAVFILE -tl=512 -bs=8 -o $SAVFILE -ds=timit -ne=100 -lr=1e-7 --no-valid-on-epoch

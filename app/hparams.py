@@ -43,7 +43,8 @@ LR_DECAY = .8           # learn rate decaying, can be None
 
 # "fixed" -> decay learn rate on each epoch
 # "adaptive" -> only decay if validation or training error don't get better
-LR_DECAY_TYPE = 'adaptive'
+# None -> don't decay learning rate
+LR_DECAY_TYPE = None
 NUM_EPOCH_PER_LR_DECAY = 10
 
 # clamp absolute gradient value within this value, None for no clip
@@ -67,7 +68,7 @@ NUM_ANCHOR = 6
 #   bilstm-orig
 #   conv-bilstm-v1
 #   toy
-ENCODER_TYPE = 'bilstm-orig'
+ENCODER_TYPE = 'toy'
 # SEPARATOR_TYPE options:
 #   dot-orig
 SEPARATOR_TYPE = 'dot-sigmoid-orig'
