@@ -544,13 +544,13 @@ class Model(object):
                 i_epoch+1, n_epoch, _dict_format(cli_report)))
             stdout.flush()
 
-    def test(self, dataset):
+    def test(self, dataset, subset='test', name='Test'):
         global g_args
         train_writer = tf.summary.FileWriter(
             hparams.SUMMARY_DIR, g_sess.graph)
         cli_report = {}
         for data_pt in dataset.epoch(
-                'test', hparams.BATCH_SIZE * hparams.MAX_N_SIGNAL):
+                subset, hparams.BATCH_SIZE * hparams.MAX_N_SIGNAL):
             # note: this disables dropout during test
             to_feed = dict(
                 zip(self.train_feed_keys, (
@@ -562,7 +562,7 @@ class Model(object):
             stdout.write('.')
             stdout.flush()
             _dict_add(cli_report, step_fetch)
-        stdout.write('Test: %s\n' % (
+        stdout.write(name + ': %s\n' % (
             _dict_format(cli_report)))
 
     def reset(self):
@@ -589,7 +589,7 @@ def main():
         default='UnnamedExperiment',
         help='name of experiment, affects checkpoint saves')
     parser.add_argument('-m', '--mode',
-        default='train', help='Mode, "train", "test", "demo" or "interactive"')
+        default='train', help='Mode, "train", "valid", "test", "demo" or "interactive"')
     parser.add_argument('-i', '--input-pfile',
         help='path to input model parameter file')
     parser.add_argument('-o', '--output-pfile',
@@ -672,7 +672,9 @@ def main():
             stdout.write('done\n')
             stdout.flush()
     elif g_args.mode == 'test':
-        g_model.test(dataset=g_dataset)
+        g_model.test(g_dataset)
+    elif g_args.mode == 'valid':
+        g_model.test(g_dataset, subset)
     elif g_args.mode == 'demo':
         # prepare data point
         colors = np.asarray([
