@@ -3,6 +3,10 @@ Tensorflow implementation of "Speaker-Independent Speech Separation with Deep At
 
 [Link](https://arxiv.org/abs/1707.03634) to original paper
 
+### Deep clustering
+This codebase also contains an implementation for Deep Clustering model.
+Details are inside `README_DPCL.md`.
+
 **STILL WORK IN PROGRESS, EXPECT BUGS**
 
 ## Requirements
