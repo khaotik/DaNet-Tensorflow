@@ -82,6 +82,10 @@ DATASET_TYPE = 'timit'  # "toy", "timit", or "wsj0"
 
 SUMMARY_DIR = './logs'
 
+# [--DPCL SPECIFIC--]
+MAX_KMEANS_ITERS = 3
+TRAIN_ASSIGN_THRES = 4.  # log magnitude difference threshold for assignment
+
 # ==========================================================================
 # normally you don't need touch anything below if you just want to tweak
 # some hyperparameters

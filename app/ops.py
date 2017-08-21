@@ -327,3 +327,78 @@ def pit_mse_loss(s_x, s_y, pit_axis=1, perm_size=None, name='pit_loss'):
     return s_loss, v_perms, s_loss_sets_idx
 
 
+def spherical_kmeans_step(s_points, s_centers):
+    '''
+    Assumes points and centers are unit vectors in embedding space.
+    The similarity measure is cosine angle.
+
+    Args:
+        s_points: tensor of shape [num_points, embedding_size]
+            it must be unit vectors on embedding space
+        s_centers: tensor of shape [num_centers, embedding_size]
+            centers prior to EM iteration
+
+    Returns:
+        s_new_centers: same shape as s_centers
+            centers after one EM step
+
+    '''
+    n_cluster = s_centers.get_shape().as_list()[0]
+    assert isinstance(n_cluster, int)
+    # [N, E], [C, E] -> [N, C]
+    s_cosines = tf.matmul(
+        s_points, tf.transpose(s_centers))
+    s_assigns = tf.argmax(s_cosines, axis=1)
+    s_new_centers = tf.unsorted_segment_sum(
+        s_points, s_assigns, hparams.MAX_N_SIGNAL)
+    # normalize centers
+    s_new_centers = s_new_centers * tf.rsqrt(
+        tf.reduce_sum(
+            tf.square(s_new_centers),
+            axis=-1, keep_dims=True) + hparams.EPS)
+    return s_new_centers
+
+
+def kmeans(s_points, s_centers, fn_step, max_step=100, stop_threshold=1e-4):
+    '''
+    Perform k-means clustering
+    Args:
+        s_points: tensor of shape [batch_size, num_points, embedding_size]
+        s_centers: tensor of shape [batch_size, num_centers, embedding_size]
+        fn_step: function
+            takes (s_points, s_centers) as input,
+            outputs updated s_centers
+        max_step: int, max step for k-means
+        stop_threshold:
+            stops when all value of center does not change more than this for an step
+
+    Returns:
+        s_final_centers: same shape as s_centers
+    '''
+    batch_size = s_points.get_shape().as_list()[0]
+    assert isinstance(batch_size, int)
+
+    def fn_cond(s_steps_, s_points_, s_centers_, s_max_diff_):
+        return (s_steps_ < max_step) & (s_max_diff_ > stop_threshold)
+
+    def fn_body(s_step_, s_points_, s_centers_, s_max_diff_):
+        s_centers_tp1 = fn_step(s_points_, s_centers_)
+        s_max_diff_tp1 = tf.reduce_max(
+            tf.abs(s_centers_tp1 - s_centers_),
+            axis=None)
+        return (s_step_+1, s_points_, s_centers_, s_max_diff_tp1)
+
+    def fn_kmeans(s_input_li_):
+        _1, _2, s_centers_ts, _3 = tf.while_loop(
+            fn_cond, fn_body,
+            s_input_li_, back_prop=False)
+        return s_centers_ts
+
+    with tf.device('/cpu:0'):
+        s_step = tf.zeros([hparams.BATCH_SIZE], dtype=hparams.INTX)
+
+    s_max_diff = tf.constant(
+        stop_threshold+1., dtype=hparams.FLOATX, shape=[hparams.BATCH_SIZE])
+    return tf.map_fn(
+        fn_kmeans, [s_step, s_points, s_centers, s_max_diff],
+        dtype=hparams.FLOATX, back_prop=False)
