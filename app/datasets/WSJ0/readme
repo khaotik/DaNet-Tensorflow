@@ -12,12 +12,16 @@ in `hparams.py`, you should also change them in `process.py`, then redo the prep
 
     fuel is available at https://github.com/mila-udem/fuel
 
-- Put orignal WSJ0 dataset under this directory, symlink is also OK. So the dataset is `app/datasets/WSJ0/WSJ0`
-  The dataset can have either the orignal 15-CD structure, or merged directories. However the directory structure
+- Put original WSJ0 dataset under this directory, symlink is also OK. So the dataset is `app/datasets/WSJ0/WSJ0`
+  The dataset can have either the original 15-CD structure, or merged directories. However the directory structure
   shouldn't be changed elsewhere.
-  The orignal dataset has a paid license, so we can't put it here.
+  The original dataset has a paid license, so we can't put it here.
 
 - If you can't access Internet, then you should put `sph2pipe` program in this directory
   With internet access, the install script will automatically download and compile it.
 
-- run `install.sh`, when completed, you can set `DATASET_TYPE='wsj0'` in `app/hparams.py`
+- Run `install.sh`, when completed, you can set `DATASET_TYPE='wsj0'` in `app/hparams.py`
+
+- If you would like to put the processed dataset elsewhere for storage reasons,
+  you can do `./install.sh /path/to/wsj0-danet.hdf5`.
+  Then, under this directory make symlink via `ln -s /path/to/wsj0-danet.hdf5 wsj0-danet.hdf5`.

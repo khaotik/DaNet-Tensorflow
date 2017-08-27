@@ -3,6 +3,7 @@ from math import ceil, sqrt
 import os
 import random
 from sys import stdout, stderr
+import argparse
 
 import numpy as np
 import scipy.signal
@@ -130,9 +131,18 @@ test_names_li = list(sorted(map(lambda _: _[:-1], test_names_li)))
 # FIXME this setting is not the same as original paper
 stdout.write(' done\n'); stdout.flush()
 
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    '-o', '--output-file',
+    default=FILENAME,
+    help='path to output HDF5 file')
+args = parser.parse_args()
+
+
 random.seed(SEED)
 np.random.seed(SEED)
-dataset_file = h5py.File(FILENAME, mode='w')
+dataset_file = h5py.File(args.output_file, mode='w')
 data_t = h5py.special_dtype(vlen=np.dtype(COMPLEXX))
 
 def add_subset(name, names_li):
@@ -211,3 +221,4 @@ split_array[:]['comment'] = '.'.encode('utf8')
 
 dataset_file.attrs['split'] = split_array
 dataset_file.close()
+

@@ -27,4 +27,8 @@ fi
 find -L -type f -path *si_tr_s*.wv1 > train_set_files
 find -L -type f -path *si_dt_05*.wv1 > valid_set_files
 find -L -type f -path *si_et_05*.wv1 > test_set_files
-python process.py
+if [[ $1 ]]; then
+    python process.py -o $1
+else
+    python process.py
+fi
