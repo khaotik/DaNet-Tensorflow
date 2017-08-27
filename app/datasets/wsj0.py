@@ -41,13 +41,15 @@ class Wsj0Dataset(Dataset):
             dict(train=0, valid=1, test=2)[subset]][3]
         indices = np.arange(
             ((dset_size + batch_size - 1) // batch_size)*batch_size)
+        indices[-batch_size:] = np.sort(indices[-batch_size:])
         indices %= dset_size
-        if shuffle:
-            np.random.shuffle(indices)
         req_itor = SequentialScheme(
             examples=indices, batch_size=batch_size).get_request_iterator()
         for req in req_itor:
             data_pt = dataset.get_data(handle, req)
+            if shuffle:
+                perm = np.random.permutation(batch_size)
+                data_pt = tuple(d[perm] for d in data_pt)
             max_len = max(map(len, data_pt[0]))
             spectra_li = [utils.random_zeropad(
                 x, max_len - len(x), axis=-2)

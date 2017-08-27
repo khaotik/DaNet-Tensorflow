@@ -102,6 +102,7 @@ class ToyEncoder(Encoder):
     '''
     def __init__(self, model, name):
         self.name = name
+        self.debug_fetches = {}
 
     def __call__(self, s_signals, s_dropout_keep=1.):
         with tf.variable_scope(self.name):
