@@ -11,7 +11,7 @@ import tensorflow as tf
 
 # [--DATA TYPE--]
 FLOATX = 'float32'       # default type for float
-INTX = 'int32'           # defualt type for int
+INTX = 'int32'           # default type for int
 
 # [--PREPROCESSING--]
 # WARNING, if you change anything under this category,
@@ -164,3 +164,16 @@ def get_regularizer():
         L1=tf.contrib.layers.l1_regularizer,
         L2=tf.contrib.layers.l2_regularizer)[REG_TYPE](REG_SCALE)
     return reger
+
+def load_hparams_from_json(file_):
+    '''
+    Loads hyperparameters from JSON file.
+
+    Args:
+        file_: string or File like
+
+    Returns:
+        None
+    '''
+    # TODO
+    pass

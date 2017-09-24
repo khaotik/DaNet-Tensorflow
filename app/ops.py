@@ -1,13 +1,37 @@
 '''
 collection of commonly used Ops and layers
 '''
-from math import sqrt
+from math import factorial
+from functools import reduce
 import itertools
 
 import numpy as np
 import tensorflow as tf
 
 import app.hparams as hparams
+
+
+def dimshuffle(s_x, *axes, name='dimshuffle'):
+    '''
+    Emulates theano.dimshuffle
+
+    Args:
+        s_x: tensor
+        axes: sequence of int or 'x'
+        name: string
+    '''
+    with tf.name_scope(name):
+        assert all([i == 'x' or isinstance(i, int) for i in axes])
+
+        to_insert = sorted(i for i,j in enumerate(axes) if j=='x')
+        perm = [i for i in axes if isinstance(i, int)]
+        assert len(perm) == s_x.get_shape().ndims
+
+        s_y = tf.transpose(s_x, perm)
+        for i in to_insert:
+            s_y = tf.expand_dims(s_x, i)
+
+    return s_y
 
 
 def lyr_linear(
@@ -166,7 +190,7 @@ def lyr_gru_flat(
 
 def batch_snr(clear_signal, noisy_signal):
     '''
-    batched signal to noise raio, assuming zero mean
+    batched signal to noise ratio, assuming zero mean
 
     Args:
         clear_signal: batched array
@@ -197,6 +221,7 @@ def batch_snr(clear_signal, noisy_signal):
     coeff = 4.342944819
     return coeff * (tf.log(signal_pwr + hparams.EPS) - tf.log(noise_pwr + hparams.EPS))
 
+
 def batch_cross_snr(clear_signal, noisy_signal):
     '''
     signal to noise raio, assuming zero mean
@@ -213,7 +238,6 @@ def batch_cross_snr(clear_signal, noisy_signal):
     ndim = len(clear_signal_shp)
     assert len(noisy_signal_shp) == ndim
     assert ndim >= 2
-
 
     clear_signal = tf.expand_dims(clear_signal, 2)  # [b, m, 1, ...]
     noisy_signal = tf.expand_dims(noisy_signal, 1)  # [b, 1, n, ...]
@@ -232,6 +256,7 @@ def batch_cross_snr(clear_signal, noisy_signal):
     coeff = 4.342944819
     return coeff * (
         tf.log(signal_pwr + hparams.EPS) - tf.log(noise_pwr + hparams.EPS))
+
 
 def batch_segment_mean(s_data, s_indices, n):
     s_data_shp = tf.shape(s_data)
@@ -259,12 +284,91 @@ def combinations(s_data, subset_size, total_size=None, name=None):
         assert isinstance(total_size, int)
         assert subset_size <= total_size
 
-    v_combs = tf.constant(
+    c_combs = tf.constant(
         list(itertools.combinations(range(total_size), subset_size)),
         dtype=hparams.INTX,
         name=('combs' if name is None else name))
 
-    return tf.gather(s_data, v_combs)
+    return tf.gather(s_data, c_combs)
+
+
+def perm_argmin(
+        s_x, axes=(-2, -1), perm_size=None,
+        keep_dims=False, name='pi_argmin', _cache={}):
+    '''
+    This Op finds permutation that gives smallest sum, in a batched manner.
+
+    Args:
+        s_x: tensor
+        axes: 2-tuple of int, tensor shape on the two axes must be the same
+        perm_size: size of permutation, infer from tensor shape by default
+        name: string
+        _cache: DON'T USE, internal variable
+
+    Returns:
+        returns (outputs permutations)
+        outputs is the indices of permutation, its shape removes the two axes.
+        permutations is a constant tensor, a stack one-hot permutation matrices.
+    '''
+    assert isinstance(axes, tuple) and (len(axes) == 2)
+    assert isinstance(perm_size, (type(None), int))
+    x_shp = s_x.get_shape().as_list()
+    x_ndim = s_x.get_shape().ndims
+    if x_ndim < 2:
+        raise ValueError(
+            'Must be a tensor with at least rank-2, got %d' % x_ndim)
+    assert -x_ndim <= axes[0] < x_ndim
+    assert -x_ndim <= axes[1] < x_ndim
+    axes = (axes[0] % x_ndim, axes[1] % x_ndim)
+    axes = tuple(sorted(axes))
+    assert isinstance(axes[0], int)
+    assert isinstance(axes[1], int)
+
+    perm_sizes = [x_shp[a] for a in axes]
+    perm_sizes.append(perm_size)
+    perm_sizes = [s for s in perm_sizes if s is not None]
+    if not len(perm_sizes):
+        raise ValueError('Unknown permutation size.')
+    if not reduce(int.__eq__, perm_sizes):
+        raise ValueError('Conflicting permutation size.')
+    perm_size = perm_sizes[0]
+    if perm_size <= 0:
+        raise ValueError('Permutation size must be positive, got %d' % perm_size)
+    if perm_size not in _cache:
+        num_perm = factorial(perm_size)
+        v_perms = np.asarray(
+            list(itertools.permutations(range(perm_size))),
+            dtype=hparams.INTX)
+        v_perms_mask = np.zeros(
+            [num_perm, perm_size, perm_size],
+            dtype=hparams.INTX)
+        v_perms_mask[
+            np.arange(num_perm),
+            np.arange(perm_size),
+            v_perms] = 1
+        import pdb; pdb.set_trace();
+        v_perms_mask = tf.constant(
+            v_perms_mask, dtype=hparams.INTX,
+            )
+        _cache[perm_size] = v_perms_mask
+    else:
+        v_perms_mask = _cache[perm_size]
+
+    out_shp = x_shp.copy()
+    out_shp[axes[0]] = perm_size
+    del(out_shp[axes[1]])
+
+    shuffle_li = ['x'] * (x_ndim + 1)
+    shuffle_li[-1] = 0
+    shuffle_li[axes[0]] = 1
+    shuffle_li[axes[1]] = 2
+    s_perms_mask = dimshuffle(v_perms_mask, *shuffle_li)
+    s_output = tf.argmin(
+        tf.reduce_sum(
+            s_x * s_perms_mask,
+            axis=axes, keep_dims=keep_dims),
+        axis=-1)
+    return s_output, v_perms_mask
 
 
 def pit_mse_loss(s_x, s_y, pit_axis=1, perm_size=None, name='pit_loss'):
@@ -325,5 +429,4 @@ def pit_mse_loss(s_x, s_y, pit_axis=1, perm_size=None, name='pit_loss'):
                 s_loss_sets_idx], axis=1))
         s_loss = tf.reduce_mean(s_loss)
     return s_loss, v_perms, s_loss_sets_idx
-
 

@@ -381,8 +381,6 @@ class Model(object):
         # ===============
         # prepare summary
         # TODO add impl & summary for word error rate
-
-        # FIXME gan_loss summary is broken
         with tf.name_scope('train_summary'):
             s_loss_summary_t = tf.summary.scalar('loss', s_train_loss)
             s_snr_summary_t = tf.summary.scalar('SNR', s_train_snr)
