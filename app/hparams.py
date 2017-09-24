@@ -1,13 +1,26 @@
 '''
-hyperparameters
+Hyperparameters
+
+    This file includes hyperparameters and other settings needed to perform
+    an experiment.
+
+    At `main.py`, hyperparameters are initialized in 3 steps:
+
+        1. Initialize default value from `hparams.py` (this file).
+
+        2. Override values from JSON file, if given in `--config-file` or `-c` .
+
+        3. Override specific values from certain CLI arguments.
+
+    It's NOT recommended to modify this file directly.
+    Using JSON file or CLI arguments is preferred.
+
 '''
 import numpy as np
 import scipy.signal
 import tensorflow as tf
 
 # Hyperparameters are in CAPS
-# TODO use tf.app.flags to parse hyperparam from input
-#      or consider use json file to store hyperparams
 
 # [--DATA TYPE--]
 FLOATX = 'float32'       # default type for float
@@ -165,12 +178,27 @@ def get_regularizer():
         L2=tf.contrib.layers.l2_regularizer)[REG_TYPE](REG_SCALE)
     return reger
 
-def load_hparams_from_json(file_):
+
+def load_from_json(file_):
     '''
     Loads hyperparameters from JSON file.
 
     Args:
         file_: string or File like
+
+    Returns:
+        None
+    '''
+    # TODO
+    pass
+
+
+def save_to_json(file_):
+    '''
+    Saves hyperparameters into JSON file.
+
+    Args:
+        file_: string or file like
 
     Returns:
         None

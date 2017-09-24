@@ -1,7 +1,9 @@
 '''
 TensorFlow Implementation of "Speaker-Independent Speech Separation with Deep Attractor Network"
 
-TODO docs
+This file is entry point of the entire CLI script.
+
+TODO docs on CLI args
 '''
 from __future__ import print_function
 from __future__ import absolute_import
@@ -40,6 +42,7 @@ g_sess = tf.Session()
 g_args = None
 g_model = None
 g_dataset = None
+
 
 def _dict_add(dst, src):
     for k,v in src.items():
@@ -588,6 +591,8 @@ def main():
         help='name of experiment, affects checkpoint saves')
     parser.add_argument('-m', '--mode',
         default='train', help='Mode, "train", "valid", "test", "demo" or "interactive"')
+    parser.add_argument('-c', '--config-file',
+        help='path to JSON configuration file')
     parser.add_argument('-i', '--input-pfile',
         help='path to input model parameter file')
     parser.add_argument('-o', '--output-pfile',

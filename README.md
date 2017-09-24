@@ -50,14 +50,15 @@ You can use the "toy" dataset for debugging. It just some white noise.
 
 Check **Requirements** section for detail.
 
-### Setup hyperparameter
+### Setup hyperparameters
 
-Before performing any experiment, you should set hyperparameters in `app/hparams.py`
+Before performing any experiment, you should set hyperparameters in a JSON file.
 
 For example, you can setup batch size, learn rate, dataset type ...
 
-Most of settings are self explanatory, or commented in code.
+There is a `default.json` on root directory. It can serve as a starting point.
 
+**TODO** more arranged docs on hyperparameters.
 
 **Note** If you get out of memory (OOM) error from tensorflow, you can try using a lower `BATCH_SIZE`.
 
@@ -68,12 +69,18 @@ you should do dataset preprocessing again.
 
 ### Perform experiments
 
-Under the root dirctory of this repo:
+Under the root directory of this repo:
 
 - train a model for 10 epoch and see accuracy
 
 ```bash
     python main.py
+```
+
+- train a model using custom hyperparameters
+
+```bash
+    python main.py -c 
 ```
 
 
@@ -150,7 +157,7 @@ You can use `app/datasets/timit.py` as an reference.
     import app.datasets.my_dataset
 ```
 
- - To use your dataset, set `DATASET_TYPE='my_dataset'` in `app/hparams.py`
+ - To use your dataset, set `DATASET_TYPE` to `my_dataset` in JSON config file or `app/hparams.py`
 
 
 ### Customize model
@@ -164,12 +171,12 @@ You can make subclass of `Estimator`, `Encoder`, or `Separator` to tweak model.
 - `Separator` uses mixture spectra, mixture embedding and attractor to get separated spectra.
 
 
-You can set encoder type by setting `ENCODER_TYPE` in `hparams.py`
+You can set encoder type by setting `ENCODER_TYPE` in JSON config file or `hparams.py`
 
 You can set estimator type by setting
-`TRAIN_ESTIMATOR_METHOD` and `INFER_ESTIMATOR_METHOD` in `hparams.py`
+`TRAIN_ESTIMATOR_METHOD` and `INFER_ESTIMATOR_METHOD` in JSON config file or `hparams.py`
 
-You can set separator type by setting `SEPARATOR_TYPE` in `hparams.py`
+You can set separator type by setting `SEPARATOR_TYPE` in JSON config file or `hparams.py`
 
 
 Make sure to use `@register_*` decorator for your class.
