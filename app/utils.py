@@ -1,6 +1,9 @@
 from random import randint
+from math import ceil
+
 import numpy as np
-from itertools import product
+import scipy.io.wavfile
+import scipy.signal
 
 import app.hparams as hparams
 
@@ -75,6 +78,7 @@ def istft(X, stride, window):
 def random_zeropad(X, padlen, axis=-1):
     '''
     This randomly do zero padding in both directions, on specified axis
+    The sum of padding length equals to `padlen`
     '''
     if padlen == 0:
         return X
@@ -86,3 +90,48 @@ def random_zeropad(X, padlen, axis=-1):
     axis %= X.ndim
     pad = [(0,0)] * axis + [(l, r)] + [(0,0)] * (ndim-axis-1)
     return np.pad(X, pad, mode='constant')
+
+
+def load_wavfile(filename):
+    '''
+    This loads a WAV file, resamples to hparams.SMPRATE,
+    then preprocess it
+
+    Args:
+        filename: string
+
+    Returns:
+        numpy array of shape [time, FEATURE_SIZE]
+    '''
+    if filename is None:
+        # TODO in this case, draw a sample from dataset instead of raise ?
+        raise IOError(
+                'WAV file not specified, '
+                'please specify via --input-file argument.')
+    smprate, data = scipy.io.wavfile.read(filename)
+    fft_size = hparams.FFT_SIZE
+    fft_stride = hparams.FFT_STRIDE
+    if smprate != hparams.SMPRATE:
+        data = scipy.signal.resample(
+            data, int(ceil(len(data) * hparams.SMPRATE / smprate)))
+    Zxx = scipy.signal.stft(
+        data,
+        window=hparams.FFT_WND,
+        nperseg=fft_size,
+        noverlap=fft_size - fft_stride)[2]
+    return Zxx.astype(hparams.COMPLEXX).T
+
+
+def save_wavfile(filename, feature):
+    '''
+    Saves time series of features into a WAV file
+
+    Args:
+        filename: string
+        feature: 2D float array of shape [time, FEATURE_SIZE]
+    '''
+    data = istft(
+        feature, stride=hparams.FFT_STRIDE, window=hparams.FFT_WND)
+    scipy.io.wavfile.write(filename, hparams.SMPRATE, data)
+
+

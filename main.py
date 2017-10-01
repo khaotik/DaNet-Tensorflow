@@ -6,13 +6,12 @@ TODO docs
 from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import division
-from math import sqrt, isnan, ceil
+from math import sqrt, isnan
 from random import randint
 import argparse
 from sys import stdout
 from collections import OrderedDict
 from functools import reduce
-from itertools import permutations
 from colorsys import hsv_to_rgb
 import sys
 import os
@@ -20,8 +19,7 @@ import copy
 
 
 import numpy as np
-import scipy.signal
-import scipy.io.wavfile
+import scipy.io
 import tensorflow as tf
 # remove annoying "I tensorflow ..." logs
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -56,49 +54,6 @@ def _dict_mul(di, coeff):
 
 def _dict_format(di):
     return ' '.join('='.join((k, str(v))) for k,v in di.items())
-
-
-def load_wavfile(filename):
-    '''
-    This loads a WAV file, resamples to hparams.SMPRATE,
-    then preprocess it
-
-    Args:
-        filename: string
-
-    Returns:
-        numpy array of shape [time, FEATURE_SIZE]
-    '''
-    if filename is None:
-        # TODO in this case, draw a sample from dataset instead of raise ?
-        raise IOError(
-                'WAV file not specified, '
-                'please specify via --input-file argument.')
-    smprate, data = scipy.io.wavfile.read(filename)
-    fft_size = hparams.FFT_SIZE
-    fft_stride = hparams.FFT_STRIDE
-    if smprate != hparams.SMPRATE:
-        data = scipy.signal.resample(
-            data, int(ceil(len(data) * hparams.SMPRATE / smprate)))
-    Zxx = scipy.signal.stft(
-        data,
-        window=hparams.FFT_WND,
-        nperseg=fft_size,
-        noverlap=fft_size - fft_stride)[2]
-    return Zxx.astype(hparams.COMPLEXX).T
-
-
-def save_wavfile(filename, feature):
-    '''
-    Saves time series of features into a WAV file
-
-    Args:
-        filename: string
-        feature: 2D float array of shape [time, FEATURE_SIZE]
-    '''
-    data = utils.istft(
-        feature, stride=hparams.FFT_STRIDE, window=hparams.FFT_WND)
-    scipy.io.wavfile.write(filename, hparams.SMPRATE, data)
 
 
 class Model(object):
@@ -691,14 +646,14 @@ def main():
                 for x in src_signals[0]]
             src_signals = np.stack(src_signals_li)
             raw_mixture = np.sum(src_signals, axis=0)
-            save_wavfile(filename, raw_mixture)
+            utils.save_wavfile(filename, raw_mixture)
             true_mixture = np.log1p(np.abs(src_signals))
             true_mixture = - np.einsum(
                 'nwh,nc->whc', true_mixture, colors)
             true_mixture /= np.min(true_mixture)
         else:
             filename = g_args.input_file
-            raw_mixture = load_wavfile(g_args.input_file)
+            raw_mixture = utils.load_wavfile(g_args.input_file)
             true_mixture = np.log1p(np.abs(raw_mixture))
 
         # run with inference mode and save results
@@ -711,7 +666,7 @@ def main():
         signals = result['signals'][0]
         filename, fileext = os.path.splitext(filename)
         for i, s in enumerate(signals):
-            save_wavfile(
+            utils.save_wavfile(
                 filename + ('_separated_%d' % (i+1)) + fileext, s)
 
         # visualize result

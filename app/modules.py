@@ -17,8 +17,10 @@ class ModelModule(object):
         model: Model instance
     '''
     def __init__(self, model, name):
-        self.debug_fetches = {}
+        if hparams.DEBUG:
+            self.debug_fetches = {}
         self.name = name
+        self.model = model
 
     def __call__(self, s_dropout_keep=1.):
         raise NotImplementedError()
@@ -29,8 +31,7 @@ class Encoder(ModelModule):
     maps log-magnitude-spectra to embedding
     '''
     def __init__(self, model, name):
-        self.debug_fetches = {}
-        self.name = name
+        super(Encoder, self).__init__(model, name)
 
     def __call__(self, s_mixture, s_dropout_keep=1.):
         '''
@@ -57,8 +58,7 @@ class Estimator(ModelModule):
     '''
     USE_TRUTH=True  # set this to true if it uses ground truth
     def __init__(self, model, name):
-        self.name = name
-        self.debug_fetches = {}
+        super(Estimator, self).__init__(model, name)
 
     def __call__(self, s_embed, **kwargs):
         '''
@@ -77,8 +77,7 @@ class Separator(ModelModule):
     produce power spectra of separated signals
     '''
     def __init__(self, model, name):
-        self.name = name
-        self.debug_fetches = {}
+        super(Separator, self).__init__(model, name)
 
     def __call__(self, s_mixed_signals_pwr, s_attractors, s_embed_flat):
         '''
@@ -101,7 +100,7 @@ class ToyEncoder(Encoder):
     This encoder is a 3 layer MLP for debugging purposes
     '''
     def __init__(self, model, name):
-        self.name = name
+        super(ToyEncoder, self).__init__(model, name)
 
     def __call__(self, s_signals, s_dropout_keep=1.):
         with tf.variable_scope(self.name):
@@ -145,9 +144,7 @@ class LstmEncoder(Encoder):
     LSTM network as in original paper
     '''
     def __init__(self, model, name):
-        self.name = name
-        self.model = model
-        self.debug_fetches = {}
+        super(LstmEncoder, self).__init__(model, name)
 
     def __call__(self, s_signals, s_dropout_keep=1.):
         with tf.variable_scope(self.name):
@@ -200,16 +197,13 @@ class LstmEncoder(Encoder):
         return s_out
 
 
-
 @hparams.register_encoder('bilstm-orig')
 class BiLstmEncoder(Encoder):
     '''
     Bi-LSTM network as in original paper
     '''
     def __init__(self, model, name):
-        self.name = name
-        self.model = model
-        self.debug_fetches = {}
+        super(LstmEncoder, self).__init__(model, name)
 
     def __call__(self, s_signals, s_dropout_keep=1.):
         with tf.variable_scope(self.name):
@@ -273,8 +267,7 @@ class ConvBiLstmEncoder(Encoder):
     Experimental CNN-LSTM hybrid network
     '''
     def __init__(self, model, name):
-        self.name = name
-        self.model = model
+        super(ConvBiLstmEncoder, self).__init__(model, name)
 
     def __call__(self, s_signals, s_dropout_keep=1.):
         with tf.variable_scope(self.name):
@@ -394,8 +387,7 @@ class AverageEstimator(Estimator):
     '''
     USE_TRUTH = True
     def __init__(self, model, name):
-        self.name = name
-
+        super(AverageEstimator, self).__init__(model, name)
     def __call__(self, s_embed, s_src_pwr, s_mix_pwr, s_embed_flat=None):
         if s_embed_flat is None:
             s_embed_flat = tf.reshape(
@@ -422,13 +414,14 @@ class AverageEstimator(Estimator):
 
 
 @hparams.register_estimator('truth-threshold')
-class WeightedAverageEstimator(Estimator):
+class ThreshouldedAverageEstimator(Estimator):
     '''
-    Estimate attractor from simple average of true assignment
+    Estimate attractor from true assignment, cutting spectra
+    with magnitude less than a certain threshold.
     '''
     USE_TRUTH = True
     def __init__(self, model, name):
-        self.name = name
+        super(ThreshouldedAverageEstimator, self).__init__(model, name)
 
     def __call__(self, s_embed, s_src_pwr, s_mix_pwr, s_embed_flat=None):
         if s_embed_flat is None:
@@ -454,8 +447,6 @@ class WeightedAverageEstimator(Estimator):
                 hparams.FLOATX)
             s_attractors /= (s_attractors_wgt + hparams.EPS)
 
-        if hparams.DEBUG:
-            self.debug_fetches = dict()
         # float[B, C, E]
         return s_attractors
 
@@ -463,11 +454,11 @@ class WeightedAverageEstimator(Estimator):
 @hparams.register_estimator('truth-weighted')
 class WeightedAverageEstimator(Estimator):
     '''
-    Estimate attractor from simple average of true assignment
+    Estimate attractor from weighted average of true assignment
     '''
     USE_TRUTH = True
     def __init__(self, model, name):
-        self.name = name
+        super(WeightedAverageEstimator, self).__init__(model, name)
 
     def __call__(self, s_embed, s_src_pwr, s_mix_pwr, s_embed_flat=None):
         if s_embed_flat is None:
@@ -505,6 +496,7 @@ class AnchoredEstimator(Estimator):
     '''
     USE_TRUTH = False
     def __init__(self, model, name):
+        super(AnchoredEstimator, self).__init__(model, name)
         self.name = name
 
     def __call__(self, s_embed):
@@ -555,13 +547,12 @@ class AnchoredEstimator(Estimator):
 
 
 @hparams.register_separator('dot-sigmoid-orig')
-class DotSeparator(Separator):
+class DotSeparatorSigmoid(Separator):
     '''
-    Use dot product as similarity measure, same as orignal paper
+    Use dot product as similarity measure, same as original paper
     '''
     def __init__(self, model, name):
-        self.name = name
-        self.debug_fetches = {}
+        super(DotSeparatorSigmoid, self).__init__(model, name)
 
     def __call__(self, s_mixed_signals_pwr, s_attractors, s_embed_flat):
         with tf.variable_scope(self.name):
@@ -585,13 +576,12 @@ class DotSeparator(Separator):
 
 
 @hparams.register_separator('dot-softmax-orig')
-class DotSeparator(Separator):
+class DotSeparatorSoftmax(Separator):
     '''
-    Use dot product as similarity measure, same as orignal paper
+    Use dot product as similarity measure, same as original paper
     '''
     def __init__(self, model, name):
-        self.name = name
-        self.debug_fetches = {}
+        super(DotSeparatorSoftmax, self).__init__(model, name)
 
     def __call__(self, s_mixed_signals_pwr, s_attractors, s_embed_flat):
         with tf.variable_scope(self.name):
