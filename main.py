@@ -26,7 +26,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 import app.datasets as datasets
-import app.hparams as hparams
+from app.hparams import hparams
+# import app.hparams as hparams
 import app.modules as modules
 import app.ops as ops
 import app.ozers as ozers
@@ -568,7 +569,11 @@ def main():
 
     # TODO manage device
 
-    # Do override from arguments
+    # load hparams from JSON file
+    hparams.load_json('default.json')
+    hparams.digest()
+
+    # Do hparams overrides from CLI arguments
     if g_args.learn_rate is not None:
         hparams.LR = float(g_args.learn_rate)
         assert hparams.LR >= 0.

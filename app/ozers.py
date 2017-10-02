@@ -3,7 +3,7 @@ Optimizers
 '''
 import tensorflow as tf
 
-import app.hparams as hparams
+from app.hparams import hparams
 
 
 @hparams.register_optimizer('sgd')

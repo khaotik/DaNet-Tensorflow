@@ -5,7 +5,7 @@ import numpy as np
 import scipy.io.wavfile
 import scipy.signal
 
-import app.hparams as hparams
+from app.hparams import hparams
 
 
 def prompt_yesno(q_):

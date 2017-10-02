@@ -6,7 +6,7 @@ from fuel.datasets.hdf5 import H5PYDataset
 from fuel.schemes import SequentialScheme
 
 import app.utils as utils
-import app.hparams as hparams
+from app.hparams import hparams
 from app.datasets.dataset import Dataset
 
 

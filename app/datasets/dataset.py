@@ -2,7 +2,7 @@ from itertools import product
 
 import numpy as np
 
-import app.hparams as hparams
+from app.hparams import hparams
 
 
 class Dataset(object):

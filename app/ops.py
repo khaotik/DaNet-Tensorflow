@@ -8,7 +8,7 @@ import itertools
 import numpy as np
 import tensorflow as tf
 
-import app.hparams as hparams
+from app.hparams import hparams
 
 
 def dimshuffle(s_x, *axes, name='dimshuffle'):

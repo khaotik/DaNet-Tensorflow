@@ -1,0 +1,40 @@
+{
+    "FLOATX" : "float32",
+    "INTX" : "int32",
+
+    "FFT_SIZE" : 256,
+    "FFT_STRIDE" : 64,
+    "FFT_WND" : "np.sqrt(scipy.signal.hann(self.FFT_SIZE)).astype(self.FLOATX)",
+    "SMPRATE" : 8000,
+
+    "BATCH_SIZE" : 32,
+    "MAX_N_SIGNAL" : 2,
+
+    "LENGTH_ALIGN" : 4,
+    "MAX_TRAIN_LEN" : 128,
+    "EMBED_SIZE" : 20,
+
+    "RELU_LEAKAGE" : 0.3,
+    "EPS" : 1e-7,
+    "DROPOUT_KEEP_PROB" : 1.0,
+    "REG_SCALE" : 1e-2,
+    "REG_TYPE" : "L2",
+    "LR" : 3e-4,
+    "LR_DECAY" : 0.8,
+
+    "LR_DECAY_TYPE" : null,
+    "NUM_EPOCH_PER_LR_DECAY" : 10,
+    "GRAD_CLIP_THRES" : 100.0,
+
+    "TRAIN_ESTIMATOR_METHOD" : "truth-weighted",
+    "INFER_ESTIMATOR_METHOD" : "anchor",
+    "NUM_ANCHOR" : 6,
+
+    "ENCODER_TYPE" : "toy",
+    "SEPARATOR_TYPE" : "dot-sigmoid-orig",
+    "OPTIMIZER_TYPE" : "adam",
+    "DATASET_TYPE" : "toy",
+    "SUMMARY_DIR" : "./logs",
+
+    "DEBUG" : false
+}

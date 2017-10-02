@@ -6,7 +6,7 @@ import gc
 
 import numpy as np
 
-import app.hparams as hparams
+from app.hparams import hparams
 import app.utils as utils
 from app.datasets.dataset import Dataset
 
