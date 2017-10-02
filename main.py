@@ -548,6 +548,8 @@ def main():
         help='path to input model parameter file')
     parser.add_argument('-o', '--output-pfile',
         help='path to output model parameters file')
+    parser.add_argument('-c', '--hparams-file',
+        help='path to hyperparameters (or config) file')
     parser.add_argument('-ne', '--num-epoch',
         type=int, default=10, help='number of training epoch')
     parser.add_argument('--no-save-on-epoch',
@@ -569,11 +571,14 @@ def main():
 
     # TODO manage device
 
-    # load hparams from JSON file
+    # load hparams from default JSON file
     hparams.load_json('default.json')
-    hparams.digest()
 
-    # Do hparams overrides from CLI arguments
+    # override hparams from custom JSON file
+    if g_args.hparams_file is not None:
+        hparams.load_json(g_args.hparams_file)
+
+    # override hparams from CLI arguments
     if g_args.learn_rate is not None:
         hparams.LR = float(g_args.learn_rate)
         assert hparams.LR >= 0.
@@ -585,6 +590,8 @@ def main():
     if g_args.batch_size is not None:
         hparams.BATCH_SIZE = int(g_args.batch_size)
         assert hparams.BATCH_SIZE > 0
+
+    hparams.digest()
 
     stdout.write('Preparing dataset "%s" ... ' % hparams.DATASET_TYPE)
     stdout.flush()
