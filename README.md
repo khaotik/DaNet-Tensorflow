@@ -7,57 +7,81 @@ Tensorflow implementation of "Speaker-Independent Speech Separation with Deep At
 
 ## Requirements
 
-### General
-
 numpy / scipy
 
 tensorflow >= 1.2
 
 matplotlib (optional, for visualization)
 
-### TIMIT dataset
-
-You need a utility program `sndfile-convert`
-
-On Ubuntu, this can be installed as:
-
-`apt-get install sndfile-programs`
-
-The source code is also available at [here](https://github.com/erikd/libsndfile)
-
-
-You should follow `app/datasets/TIMIT/readme` for dataset preparation.
-
-### WSJ0 dataset
-
-h5py / [fuel](https://github.com/mila-udem/fuel)
-
-If you can't connect to Internet, you need to prepare `sph2pipe` utility under `app/datasets/WSJ0`.
-It's available for download [here](http://www.openslr.org/resources/3/sph2pipe_v2.5.tar.gz)
-
-With internet connection, the script automatically will download it for you.
-
-
-You should follow `app/datasets/WSJ0/readme` for dataset preparation.
+h5py / [fuel](https://github.com/mila-udem/fuel) (optional, for certain datasets)
 
 ## Usage
 
-### Setup dataset
+### Prepare datasets
 
 Currently, TIMIT and WSJ0 datasets are implemented.
 You can use the "toy" dataset for debugging. It just some white noise.
 
+- TIMIT dataset
 
-Check **Requirements** section for detail.
+Follow `app/datasets/TIMIT/readme` for dataset preparation.
 
-### Setup hyperparameter
+- WSJ0 dataset
 
-Before performing any experiment, you should set hyperparameters in `app/hparams.py`
+Follow `app/datasets/WSJ0/readme` for dataset preparation.
 
-For example, you can setup batch size, learn rate, dataset type ...
+**After setting up a dataset, you may want to change** `DATASET_TYPE` in hyperparameters.
 
-Most of settings are self explanatory, or commented in code.
+### Setup hyperparameters
 
+This is to change batch size, learning rate, dataset type etc ...
+
+- The recommended way: using JSON file
+
+There's a `default.json` file at the root directory. You make your own and change
+*some* of the values. For example you can create a JSON file with:
+
+```json
+{
+    DATASET_TYPE="timit",
+    LR=1e-2,
+    BATCH_SIZE=8
+}
+```
+
+Save it as `my_setup.json`, now you can run the script with:
+
+```bash
+python main.py -c my_setup.json
+```
+
+- The direct way: using command line arguments
+
+Some commonly used hyperparameters can be overridden by CLI args.
+
+For example, to set learning rate:
+
+```bash
+python main.py -lr=1e-2
+```
+
+Here's a incomplete list of them:
+
+```
+# set learning rate, overrides LR
+-lr
+--learn-rate
+
+# set dataset to use, overrides DATASET_TYPE
+-ds
+--dataset
+
+# set batch size, overrides 
+-bs
+--batch-size
+
+# set
+```
 
 **Note** If you get out of memory (OOM) error from tensorflow, you can try using a lower `BATCH_SIZE`.
 
@@ -68,12 +92,19 @@ you should do dataset preprocessing again.
 
 ### Perform experiments
 
-Under the root dirctory of this repo:
+Under the root directory of this repo:
 
-- train a model for 10 epoch and see accuracy
+- train a model for 10 epoch and see accuracy, using TIMIT dataset
 
 ```bash
-    python main.py
+    python main.py -ds='timit'
+```
+
+
+- train a model using your own hyperparameters
+
+```bash
+    python main.py -c my_setup.json
 ```
 
 
@@ -150,7 +181,7 @@ You can use `app/datasets/timit.py` as an reference.
     import app.datasets.my_dataset
 ```
 
- - To use your dataset, set `DATASET_TYPE='my_dataset'` in `app/hparams.py`
+ - To use your dataset, set `DATASET_TYPE` to `"my_dataset"` in JSON config file
 
 
 ### Customize model
@@ -164,12 +195,12 @@ You can make subclass of `Estimator`, `Encoder`, or `Separator` to tweak model.
 - `Separator` uses mixture spectra, mixture embedding and attractor to get separated spectra.
 
 
-You can set encoder type by setting `ENCODER_TYPE` in `hparams.py`
+You can set encoder type by setting `ENCODER_TYPE` in hyperparameters.
 
 You can set estimator type by setting
-`TRAIN_ESTIMATOR_METHOD` and `INFER_ESTIMATOR_METHOD` in `hparams.py`
+`TRAIN_ESTIMATOR_METHOD` and `INFER_ESTIMATOR_METHOD` in hyperparameters.
 
-You can set separator type by setting `SEPARATOR_TYPE` in `hparams.py`
+You can set separator type by setting `SEPARATOR_TYPE` in hyperparameters.
 
 
 Make sure to use `@register_*` decorator for your class.

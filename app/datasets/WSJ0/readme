@@ -1,7 +1,7 @@
 WSJ0 dataset
 
-**WARNING** If you change `FFT_SIZE`, `FFT_STRIDE`, `FFT_WND`, `SMP_RATE`
-in `hparams.py`, you should also change them in `process.py`, then redo the preprocessing
+**WARNING** If you change `FFT_SIZE`, `FFT_STRIDE`, `FFT_WND` or `SMP_RATE`
+in your setup, you should also change them in `process.py`, then redo the preprocessing
 
 
 - You need h5py and fuel
@@ -17,11 +17,11 @@ in `hparams.py`, you should also change them in `process.py`, then redo the prep
   shouldn't be changed elsewhere.
   The original dataset has a paid license, so we can't put it here.
 
-- If you can't access Internet, then you should put `sph2pipe` program in this directory
+- [Optional] If you can't access Internet, then you should put `sph2pipe` program under this directory
   With internet access, the install script will automatically download and compile it.
 
-- Run `install.sh`, when completed, you can set `DATASET_TYPE='wsj0'` in `app/hparams.py`
+- Run `install.sh`, when completed, you can set `DATASET_TYPE` to `"wsj0"` in JSON config file
 
-- If you would like to put the processed dataset elsewhere for storage reasons,
+- [Optional] If you would like to put the processed dataset elsewhere for storage reasons,
   you can do `./install.sh /path/to/wsj0-danet.hdf5`.
   Then, under this directory make symlink via `ln -s /path/to/wsj0-danet.hdf5 wsj0-danet.hdf5`.

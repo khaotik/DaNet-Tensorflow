@@ -17,4 +17,4 @@ https://github.com/erikd/libsndfile
 
 2. run `install.sh`
 
-3. when completed, you can set `DATASET_TYPE='timit'` in `app/hparams.py`
+3. when completed, you can set `DATASET_TYPE` to `"timit"` in JSON hyperparameter file
