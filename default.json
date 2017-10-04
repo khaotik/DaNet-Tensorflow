@@ -35,6 +35,7 @@
     "OPTIMIZER_TYPE" : "adam",
     "DATASET_TYPE" : "toy",
     "SUMMARY_DIR" : "./logs",
+    "SUMMARY_TITLE": "Test 1",
 
     "DEBUG" : false
 }

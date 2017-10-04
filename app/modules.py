@@ -197,7 +197,7 @@ class LstmEncoder(Encoder):
 
 
 @hparams.register_encoder('bilstm-orig')
-class BiLstmEncoder(Encoder):
+class BiLstmEncoder(LstmEncoder):
     '''
     Bi-LSTM network as in original paper
     '''
@@ -498,7 +498,7 @@ class AnchoredEstimator(Estimator):
         super(AnchoredEstimator, self).__init__(model, name)
         self.name = name
 
-    def __call__(self, s_embed):
+    def __call__(self, s_embed, s_src_pwr=None, s_mix_pwr=None, s_embed_flat=None):
         with tf.variable_scope(self.name):
             v_anchors = tf.get_variable(
                 'anchors', [hparams.NUM_ANCHOR, hparams.EMBED_SIZE],

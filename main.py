@@ -16,6 +16,7 @@ from colorsys import hsv_to_rgb
 import sys
 import os
 import copy
+import datetime as datetime
 
 
 import numpy as np
@@ -94,6 +95,7 @@ class Model(object):
         t_axis = t_axis % ndim
         assert axis != t_axis
         # make sure t_axis is 0, to make scan work
+        perm = []
         if t_axis != 0:
             if axis == 0:
                 axis = t_axis % ndim
@@ -149,6 +151,7 @@ class Model(object):
         t_axis = t_axis % ndim
         assert axis != t_axis
         # make sure t_axis is 0, to make scan work
+        perm = []
         if t_axis != 0:
             if axis == 0:
                 axis = t_axis % ndim
@@ -340,10 +343,12 @@ class Model(object):
         with tf.name_scope('train_summary'):
             s_loss_summary_t = tf.summary.scalar('loss', s_train_loss)
             s_snr_summary_t = tf.summary.scalar('SNR', s_train_snr)
+            s_lr_summary_t = tf.summary.scalar('LR', self.v_learn_rate)
 
         with tf.name_scope('valid_summary'):
             s_loss_summary_v = tf.summary.scalar('loss', s_valid_loss)
             s_snr_summary_v = tf.summary.scalar('SNR', s_valid_snr)
+            s_lr_summary_v = tf.summary.scalar('LR', self.v_learn_rate)
 
         # apply optimizer
         ozer = hparams.get_optimizer()(
@@ -364,14 +369,14 @@ class Model(object):
         self.train_feed_keys = [
             s_src_signals, s_dropout_keep]
         train_summary = tf.summary.merge(
-            [s_loss_summary_t, s_snr_summary_t])
+            [s_loss_summary_t, s_snr_summary_t, s_lr_summary_t])
         self.train_fetches = [
             train_summary,
-            dict(loss=s_train_loss, SNR=s_train_snr),
+            dict(loss=s_train_loss, SNR=s_train_snr, LR=self.v_learn_rate),
             self.op_sgd_step]
 
         self.valid_feed_keys = self.train_feed_keys
-        valid_summary = tf.summary.merge([s_loss_summary_v, s_snr_summary_v])
+        valid_summary = tf.summary.merge([s_loss_summary_v, s_snr_summary_v, s_lr_summary_v])
         self.valid_fetches = [
             valid_summary,
             dict(loss=s_valid_loss, SNR=s_valid_snr)]
@@ -396,13 +401,16 @@ class Model(object):
 
     def train(self, n_epoch, dataset):
         global g_args
-        train_writer = tf.summary.FileWriter(hparams.SUMMARY_DIR, g_sess.graph)
+        train_writer = tf.summary.FileWriter(os.path.join(hparams.SUMMARY_DIR, str(datetime.datetime.now().strftime("%m%d_%H%M%S")) + ' ' + hparams.SUMMARY_TITLE), g_sess.graph)
         best_loss = float('+inf')
         best_loss_time = 0
         self.set_learn_rate(hparams.LR)
         print('Set learning rate to %f' % hparams.LR)
+        train_step = 0
+        valid_step = 0
         for i_epoch in range(n_epoch):
             cli_report = OrderedDict()
+            i_batch=0
             for i_batch, data_pt in enumerate(dataset.epoch(
                     'train',
                     hparams.BATCH_SIZE * hparams.MAX_N_SIGNAL, shuffle=True)):
@@ -422,7 +430,8 @@ class Model(object):
                 step_summary, step_fetch = g_sess.run(
                     self.train_fetches, to_feed)[:2]
                 self.reset_state()
-                train_writer.add_summary(step_summary)
+                train_writer.add_summary(step_summary, train_step)
+                train_step += 1
                 stdout.write(':')
                 stdout.flush()
                 _dict_add(cli_report, step_fetch)
@@ -473,6 +482,7 @@ class Model(object):
             if g_args.no_valid_on_epoch:
                 continue
             cli_report = OrderedDict()
+            i_batch = 0
             for i_batch, data_pt in enumerate(dataset.epoch(
                     'valid',
                     hparams.BATCH_SIZE * hparams.MAX_N_SIGNAL,
@@ -489,7 +499,8 @@ class Model(object):
                 step_summary, step_fetch = g_sess.run(
                     self.valid_fetches, to_feed)[:2]
                 self.reset_state()
-                train_writer.add_summary(step_summary)
+                train_writer.add_summary(step_summary, valid_step)
+                valid_step+=1
                 stdout.write('.')
                 stdout.flush()
                 _dict_add(cli_report, step_fetch)
@@ -501,7 +512,8 @@ class Model(object):
     def test(self, dataset, subset='test', name='Test'):
         global g_args
         train_writer = tf.summary.FileWriter(
-            hparams.SUMMARY_DIR, g_sess.graph)
+            os.path.join(hparams.SUMMARY_DIR,
+                         str(datetime.datetime.now().strftime("%m%d_%H%M%S")) + ' ' + hparams.SUMMARY_TITLE), g_sess.graph)
         cli_report = {}
         for data_pt in dataset.epoch(
                 subset, hparams.BATCH_SIZE * hparams.MAX_N_SIGNAL):
@@ -649,6 +661,7 @@ def main():
             ) / hparams.MAX_N_SIGNAL])
         if g_args.input_file is None:
             filename = 'demo.wav'
+            src_signals=[]
             for src_signals in g_dataset.epoch('test', hparams.MAX_N_SIGNAL):
                 break
             max_len = max(map(len, src_signals[0]))
@@ -703,6 +716,7 @@ def main():
         plt.show()
     elif g_args.mode == 'debug':
         import matplotlib.pyplot as plt
+        input_=[]
         for input_ in g_dataset.epoch(
             'test', hparams.MAX_N_SIGNAL, shuffle=True):
             break
