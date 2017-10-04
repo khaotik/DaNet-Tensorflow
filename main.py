@@ -16,6 +16,7 @@ from colorsys import hsv_to_rgb
 import sys
 import os
 import copy
+import datetime as datetime
 
 
 import numpy as np
@@ -32,7 +33,7 @@ import app.modules as modules
 import app.ops as ops
 import app.ozers as ozers
 import app.utils as utils
-import datetime as datetime
+
 
 # Global vars
 g_sess = tf.Session()
@@ -400,7 +401,7 @@ class Model(object):
 
     def train(self, n_epoch, dataset):
         global g_args
-        train_writer = tf.summary.FileWriter(hparams.SUMMARY_DIR + '/' + str(datetime.datetime.now().strftime("%m%d_%H%M%S")) + ' ' + hparams.SUMMARY_TITLE, g_sess.graph)
+        train_writer = tf.summary.FileWriter(os.path.join(hparams.SUMMARY_DIR, str(datetime.datetime.now().strftime("%m%d_%H%M%S")) + ' ' + hparams.SUMMARY_TITLE), g_sess.graph)
         best_loss = float('+inf')
         best_loss_time = 0
         self.set_learn_rate(hparams.LR)
@@ -511,7 +512,8 @@ class Model(object):
     def test(self, dataset, subset='test', name='Test'):
         global g_args
         train_writer = tf.summary.FileWriter(
-            hparams.SUMMARY_DIR + '/' + str(datetime.datetime.now().strftime("%m%d_%H%M%S")) + ' ' + hparams.SUMMARY_TITLE, g_sess.graph)
+            os.path.join(hparams.SUMMARY_DIR,
+                         str(datetime.datetime.now().strftime("%m%d_%H%M%S")) + ' ' + hparams.SUMMARY_TITLE), g_sess.graph)
         cli_report = {}
         for data_pt in dataset.epoch(
                 subset, hparams.BATCH_SIZE * hparams.MAX_N_SIGNAL):
