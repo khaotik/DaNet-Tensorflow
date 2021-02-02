@@ -3,6 +3,8 @@ Tensorflow implementation of "Speaker-Independent Speech Separation with Deep At
 
 [Link](https://arxiv.org/abs/1707.03634) to original paper
 
+### 2021 Note: I am NOT the original author of paper. This code runs but won't learn well. I've got no time to work on this. If you managed to get the models working, let me know.
+
 **STILL WORK IN PROGRESS, EXPECT BUGS**
 
 ## Requirements
